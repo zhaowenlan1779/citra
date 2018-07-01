@@ -1,6 +1,8 @@
 add_library(web_service STATIC
     announce_room_json.cpp
     announce_room_json.h
+    github_changelog.cpp
+    github_changelog.h
     telemetry_json.cpp
     telemetry_json.h
     verify_login.cpp

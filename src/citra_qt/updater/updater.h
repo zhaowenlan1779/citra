@@ -152,7 +152,7 @@ signals:
     /**
      * Will be emitted as soon as the updater finished checking for updates
      **/
-    void CheckUpdatesDone(bool has_updates, bool has_error);
+    void CheckUpdatesDone(QList<Updater::UpdateInfo> update_info, bool has_error);
 
     /**
      * Emitted when a update check operation changes stage

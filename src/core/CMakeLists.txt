@@ -26,6 +26,8 @@ add_library(core STATIC
     arm/skyeye_common/vfp/vfpdouble.cpp
     arm/skyeye_common/vfp/vfpinstr.cpp
     arm/skyeye_common/vfp/vfpsingle.cpp
+    changelog.cpp
+    changelog.h
     core.cpp
     core.h
     core_timing.cpp

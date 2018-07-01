@@ -123,9 +123,9 @@ std::future<Common::WebResult> PostJson(const std::string& url, const std::strin
 }
 
 template <typename T>
-std::future<T> GetJson(std::function<T(const std::string&)> func, const std::string& url,
-                       bool allow_anonymous, const std::string& username,
-                       const std::string& token) {
+std::future<T> GetRequest(std::function<T(const std::string&)> func, const std::string& url,
+                          const std::string& expected_content_type, bool allow_anonymous,
+                          const std::string& username, const std::string& token) {
     using lup = LUrlParser::clParseURL;
     namespace hl = httplib;
 
@@ -155,7 +155,7 @@ std::future<T> GetJson(std::function<T(const std::string&)> func, const std::str
     }
 
     // Get JSON asynchronously
-    return std::async(std::launch::async, [func, url, parsedUrl, params] {
+    return std::async(std::launch::async, [func, url, parsedUrl, params, expected_content_type] {
         std::unique_ptr<hl::Client> cli = GetClientFor(parsedUrl);
 
         if (cli == nullptr) {
@@ -183,7 +183,7 @@ std::future<T> GetJson(std::function<T(const std::string&)> func, const std::str
         auto content_type = response.headers.find("content-type");
 
         if (content_type == response.headers.end() ||
-            content_type->second.find("application/json") == std::string::npos) {
+            content_type->second.find(expected_content_type) == std::string::npos) {
             NGLOG_ERROR(WebService, "GET to {} returned wrong content: {}", url,
                         content_type->second);
             return func("");
@@ -193,6 +193,13 @@ std::future<T> GetJson(std::function<T(const std::string&)> func, const std::str
     });
 }
 
+template <typename T>
+std::future<T> GetJson(std::function<T(const std::string&)> func, const std::string& url,
+                       bool allow_anonymous, const std::string& username,
+                       const std::string& token) {
+    return GetRequest(func, url, "application/json", allow_anonymous, username, token);
+}
+
 template std::future<bool> GetJson(std::function<bool(const std::string&)> func,
                                    const std::string& url, bool allow_anonymous,
                                    const std::string& username, const std::string& token);
@@ -200,6 +207,20 @@ template std::future<AnnounceMultiplayerRoom::RoomList> GetJson(
     std::function<AnnounceMultiplayerRoom::RoomList(const std::string&)> func,
     const std::string& url, bool allow_anonymous, const std::string& username,
     const std::string& token);
+template std::future<std::string> GetJson(std::function<std::string(const std::string&)> func,
+                                          const std::string& url, bool allow_anonymous,
+                                          const std::string& username, const std::string& token);
+
+template <typename T>
+std::future<T> GetPlain(std::function<T(const std::string&)> func, const std::string& url,
+                        bool allow_anonymous, const std::string& username,
+                        const std::string& token) {
+    return GetRequest(func, url, "text/plain", allow_anonymous, username, token);
+}
+
+template std::future<std::string> GetPlain(std::function<std::string(const std::string&)> func,
+                                           const std::string& url, bool allow_anonymous,
+                                           const std::string& username, const std::string& token);
 
 void DeleteJson(const std::string& url, const std::string& data, const std::string& username,
                 const std::string& token) {

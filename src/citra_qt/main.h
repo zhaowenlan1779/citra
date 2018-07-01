@@ -9,6 +9,7 @@
 #include <QMainWindow>
 #include <QTimer>
 #include <QTranslator>
+#include "citra_qt/updater/updater.h"
 #include "common/announce_multiplayer_room.h"
 #include "core/core.h"
 #include "core/hle/service/am/am.h"
@@ -35,7 +36,6 @@ template <typename>
 class QFutureWatcher;
 class QProgressBar;
 class RegistersWidget;
-class Updater;
 class WaitTreeWidget;
 
 class GMainWindow : public QMainWindow {
@@ -172,7 +172,7 @@ private slots:
     void OnCoreError(Core::System::ResultStatus, std::string);
     /// Called whenever a user selects Help->About Citra
     void OnMenuAboutCitra();
-    void OnUpdateFound(bool found, bool error);
+    void OnUpdateFound(QList<Updater::UpdateInfo> update_info, bool error);
     void OnCheckForUpdates();
     void OnOpenUpdater();
     void OnLanguageChanged(const QString& locale);

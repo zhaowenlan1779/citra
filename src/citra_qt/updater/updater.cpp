@@ -12,7 +12,6 @@
 #include <QTimer>
 #include <QXmlStreamReader>
 #include "citra_qt/ui_settings.h"
-#include "citra_qt/updater/updater.h"
 #include "citra_qt/updater/updater_p.h"
 #include "common/logging/log.h"
 
@@ -250,7 +249,7 @@ void UpdaterPrivate::UpdaterReady(int exit_code, QProcess::ExitStatus exit_statu
         has_error = true;
     }
 
-    emit parent->CheckUpdatesDone(!update_info.isEmpty(), has_error);
+    emit parent->CheckUpdatesDone(update_info, has_error);
 }
 
 void UpdaterPrivate::UpdaterError(QProcess::ProcessError error) {
@@ -263,7 +262,7 @@ void UpdaterPrivate::UpdaterError(QProcess::ProcessError error) {
 
         running = false;
         emit parent->RunningChanged(false);
-        emit parent->CheckUpdatesDone(false, true);
+        emit parent->CheckUpdatesDone({}, true);
     }
 }
 

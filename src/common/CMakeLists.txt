@@ -46,6 +46,7 @@ add_library(common STATIC
     bit_set.h
     break_points.cpp
     break_points.h
+    changelog_backend.h
     chunk_file.h
     cityhash.cpp
     cityhash.h

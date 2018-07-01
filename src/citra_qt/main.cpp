@@ -48,6 +48,7 @@
 #include "common/scm_rev.h"
 #include "common/scope_exit.h"
 #include "common/string_util.h"
+#include "core/changelog.h"
 #include "core/core.h"
 #include "core/file_sys/archive_source_sd_savedata.h"
 #include "core/gdbstub/gdbstub.h"
@@ -534,13 +535,13 @@ void GMainWindow::CheckForUpdates() {
     }
 }
 
-void GMainWindow::OnUpdateFound(bool found, bool error) {
+void GMainWindow::OnUpdateFound(QList<Updater::UpdateInfo> update_info, bool error) {
     if (error) {
         NGLOG_WARNING(Frontend, "Update check failed");
         return;
     }
 
-    if (!found) {
+    if (update_info.isEmpty()) {
         NGLOG_INFO(Frontend, "No updates found");
 
         // If the user explicitly clicked the "Check for Updates" button, we are
