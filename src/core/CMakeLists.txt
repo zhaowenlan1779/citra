@@ -324,8 +324,12 @@ add_library(core STATIC
     hle/service/nwm/uds_connection.h
     hle/service/nwm/uds_data.cpp
     hle/service/nwm/uds_data.h
-    hle/service/pm_app.cpp
-    hle/service/pm_app.h
+    hle/service/pm/pm.cpp
+    hle/service/pm/pm.h
+    hle/service/pm/pm_app.cpp
+    hle/service/pm/pm_app.h
+    hle/service/pm/pm_dbg.cpp
+    hle/service/pm/pm_dbg.h
     hle/service/ptm/ptm.cpp
     hle/service/ptm/ptm.h
     hle/service/ptm/ptm_gets.cpp
@@ -344,6 +348,8 @@ add_library(core STATIC
     hle/service/pxi/pxi.h
     hle/service/qtm/qtm.cpp
     hle/service/qtm/qtm.h
+    hle/service/qtm/qtm_c.cpp
+    hle/service/qtm/qtm_c.h
     hle/service/qtm/qtm_s.cpp
     hle/service/qtm/qtm_s.h
     hle/service/qtm/qtm_sp.cpp

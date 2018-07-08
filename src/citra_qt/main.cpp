@@ -138,8 +138,8 @@ GMainWindow::GMainWindow() : config(new Config()), emu_thread(nullptr) {
     ConnectWidgetEvents();
 
     SetupUIStrings();
-    NGLOG_INFO(Frontend, "Citra Version: {} | {}-{}", Common::g_build_fullname,
-               Common::g_scm_branch, Common::g_scm_desc);
+    LOG_INFO(Frontend, "Citra Version: {} | {}-{}", Common::g_build_fullname, Common::g_scm_branch,
+             Common::g_scm_desc);
 
     show();
 
@@ -529,20 +529,20 @@ void GMainWindow::OnCheckForUpdates() {
 
 void GMainWindow::CheckForUpdates() {
     if (updater->CheckForUpdates()) {
-        NGLOG_INFO(Frontend, "Update check started");
+        LOG_INFO(Frontend, "Update check started");
     } else {
-        NGLOG_WARNING(Frontend, "Unable to start check for updates");
+        LOG_WARNING(Frontend, "Unable to start check for updates");
     }
 }
 
 void GMainWindow::OnUpdateFound(QList<Updater::UpdateInfo> update_info, bool error) {
     if (error) {
-        NGLOG_WARNING(Frontend, "Update check failed");
+        LOG_WARNING(Frontend, "Update check failed");
         return;
     }
 
     if (update_info.isEmpty()) {
-        NGLOG_INFO(Frontend, "No updates found");
+        LOG_INFO(Frontend, "No updates found");
 
         // If the user explicitly clicked the "Check for Updates" button, we are
         //  going to want to show them a prompt anyway.
@@ -554,12 +554,12 @@ void GMainWindow::OnUpdateFound(QList<Updater::UpdateInfo> update_info, bool err
     }
 
     if (emulation_running && !explicit_update_check) {
-        NGLOG_INFO(Frontend, "Update found, deferring as game is running");
+        LOG_INFO(Frontend, "Update found, deferring as game is running");
         defer_update_prompt = true;
         return;
     }
 
-    NGLOG_INFO(Frontend, "Update found!");
+    LOG_INFO(Frontend, "Update found!");
     explicit_update_check = false;
 
     ShowUpdatePrompt();
@@ -611,13 +611,13 @@ bool GMainWindow::LoadROM(const QString& filename) {
     if (result != Core::System::ResultStatus::Success) {
         switch (result) {
         case Core::System::ResultStatus::ErrorGetLoader:
-            NGLOG_CRITICAL(Frontend, "Failed to obtain loader for {}!", filename.toStdString());
+            LOG_CRITICAL(Frontend, "Failed to obtain loader for {}!", filename.toStdString());
             QMessageBox::critical(this, tr("Error while loading ROM!"),
                                   tr("The ROM format is not supported."));
             break;
 
         case Core::System::ResultStatus::ErrorSystemMode:
-            NGLOG_CRITICAL(Frontend, "Failed to load ROM!");
+            LOG_CRITICAL(Frontend, "Failed to load ROM!");
             QMessageBox::critical(this, tr("Error while loading ROM!"),
                                   tr("Could not determine the system mode."));
             break;
@@ -673,7 +673,7 @@ bool GMainWindow::LoadROM(const QString& filename) {
 }
 
 void GMainWindow::BootGame(const QString& filename) {
-    NGLOG_INFO(Frontend, "Citra starting...");
+    LOG_INFO(Frontend, "Citra starting...");
     StoreRecentFile(filename); // Put the filename on top of the list
 
     if (!LoadROM(filename))
@@ -826,7 +826,7 @@ void GMainWindow::OnGameListOpenFolder(u64 program_id, GameListOpenTarget target
                "content/";
         break;
     default:
-        NGLOG_ERROR(Frontend, "Unexpected target {}", static_cast<int>(target));
+        LOG_ERROR(Frontend, "Unexpected target {}", static_cast<int>(target));
         return;
     }
 
@@ -840,7 +840,7 @@ void GMainWindow::OnGameListOpenFolder(u64 program_id, GameListOpenTarget target
         return;
     }
 
-    NGLOG_INFO(Frontend, "Opening {} path for program_id={:016x}", open_target, program_id);
+    LOG_INFO(Frontend, "Opening {} path for program_id={:016x}", open_target, program_id);
 
     QDesktopServices::openUrl(QUrl::fromLocalFile(qpath));
 }
@@ -895,7 +895,7 @@ void GMainWindow::OnGameListAddDirectory() {
         UISettings::values.game_dirs.append(game_dir);
         game_list->PopulateAsync(UISettings::values.game_dirs);
     } else {
-        NGLOG_WARNING(Frontend, "Selected directory is already in the game list");
+        LOG_WARNING(Frontend, "Selected directory is already in the game list");
     }
 }
 
@@ -932,6 +932,7 @@ void GMainWindow::OnMenuInstallCIA() {
 
     ui.action_Install_CIA->setEnabled(false);
     progress_bar->show();
+    progress_bar->setMaximum(INT_MAX);
 
     QtConcurrent::run([&, filepaths] {
         QString current_path;
@@ -944,13 +945,12 @@ void GMainWindow::OnMenuInstallCIA() {
             emit CIAInstallReport(status, current_path);
         }
         emit CIAInstallFinished();
-        return;
     });
 }
 
 void GMainWindow::OnUpdateProgress(size_t written, size_t total) {
-    progress_bar->setMaximum(total);
-    progress_bar->setValue(written);
+    progress_bar->setValue(
+        static_cast<int>(INT_MAX * (static_cast<double>(written) / static_cast<double>(total))));
 }
 
 void GMainWindow::OnCIAInstallReport(Service::AM::InstallStatus status, QString filepath) {
@@ -1155,10 +1155,12 @@ void GMainWindow::OnConfigure() {
     ConfigureDialog configureDialog(this);
     connect(&configureDialog, &ConfigureDialog::languageChanged, this,
             &GMainWindow::OnLanguageChanged);
+    auto old_theme = UISettings::values.theme;
     auto result = configureDialog.exec();
     if (result == QDialog::Accepted) {
         configureDialog.applyConfiguration();
-        UpdateUITheme();
+        if (UISettings::values.theme != old_theme)
+            UpdateUITheme();
         emit UpdateThemedIcons();
         SyncMenuUISettings();
         config->Save();
@@ -1363,7 +1365,7 @@ void GMainWindow::UpdateUITheme() {
         QString theme_uri(":" + UISettings::values.theme + "/style.qss");
         QFile f(theme_uri);
         if (!f.exists()) {
-            NGLOG_ERROR(Frontend, "Unable to set style, stylesheet file not found");
+            LOG_ERROR(Frontend, "Unable to set style, stylesheet file not found");
         } else {
             f.open(QFile::ReadOnly | QFile::Text);
             QTextStream ts(&f);
@@ -1447,7 +1449,6 @@ int main(int argc, char* argv[]) {
     QCoreApplication::setOrganizationName("Citra team");
     QCoreApplication::setApplicationName("Citra");
 
-    QApplication::setAttribute(Qt::AA_X11InitThreads);
     QApplication app(argc, argv);
 
     // Qt changes the locale and causes issues in float conversion using std::to_string() when
