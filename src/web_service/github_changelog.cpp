@@ -83,7 +83,7 @@ std::future<std::string> GithubChangelog::GetCanaryMergeChange(const std::string
         Common::StringFromFormat("%s/%s/README.md", raw_endpoint.c_str(), start_tag.c_str());
     std::string end_url =
         Common::StringFromFormat("%s/%s/README.md", raw_endpoint.c_str(), end_tag.c_str());
-    NGLOG_INFO(WebService, "start: {}, end: {}", start_url, end_url);
+    LOG_INFO(WebService, "start: {}, end: {}", start_url, end_url);
     auto get_func = [=](const std::string& reply) -> std::string {
         std::string start_md = reply;
         std::string end_md =
