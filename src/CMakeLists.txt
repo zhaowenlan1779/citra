@@ -1,3 +1,8 @@
+if (MSVC)
+    # Avoid non-compliant standard library extensions
+    add_definitions(/D_CRT_DECLARE_NONSTDC_NAMES=0)
+endif()
+
 # Enable modules to include each other's files
 include_directories(.)
 
