@@ -14,6 +14,7 @@ environment:
   CHERE_INVOKING: 1
   matrix:
     - BUILD_TYPE: mingw
+    - BUILD_TYPE: mingw-static
     - BUILD_TYPE: msvc
 
 platform:
@@ -25,8 +26,12 @@ configuration:
 install:
   - git submodule update --init --recursive
   - ps: |
-        if ($env:BUILD_TYPE -eq 'mingw') {
-          $dependencies = "mingw64/mingw-w64-x86_64-qt5"
+        if ($env:BUILD_TYPE.StartsWith('mingw')) {
+          if ($env:BUILD_TYPE -eq 'mingw-static') {
+            $dependencies = "mingw64/mingw-w64-x86_64-qt5-static mingw64/mingw-w64-x86_64-jasper"
+          } else {
+            $dependencies = "mingw64/mingw-w64-x86_64-qt5"
+          }
           C:\msys64\usr\bin\bash -lc "pacman -Syy"
           # redirect err to null to prevent warnings from becoming errors
           # workaround to prevent pacman from failing due to cyclical dependencies
@@ -46,7 +51,13 @@ before_build:
           # redirect stderr and change the exit code to prevent powershell from cancelling the build if cmake prints a warning
           cmd /C 'cmake -G "Visual Studio 15 2017 Win64" -DCITRA_USE_BUNDLED_QT=1 -DCITRA_USE_BUNDLED_SDL2=1 -DCITRA_ENABLE_COMPATIBILITY_REPORTING=${COMPAT} -DENABLE_COMPATIBILITY_LIST_DOWNLOAD=ON .. 2>&1 && exit 0'
         } else {
-          C:\msys64\usr\bin\bash.exe -lc "cmake -G 'MSYS Makefiles' -DCMAKE_BUILD_TYPE=Release -DENABLE_QT_TRANSLATION=ON -DCITRA_ENABLE_COMPATIBILITY_REPORTING=${COMPAT} -DENABLE_COMPATIBILITY_LIST_DOWNLOAD=ON .. 2>&1"
+          if ($env:BUILD_TYPE -eq 'mingw') {
+            C:\msys64\usr\bin\bash.exe -lc "cmake -G 'MSYS Makefiles' -DCMAKE_BUILD_TYPE=Release -DENABLE_QT_TRANSLATION=ON -DCITRA_ENABLE_COMPATIBILITY_REPORTING=${COMPAT} -DENABLE_COMPATIBILITY_LIST_DOWNLOAD=ON .. 2>&1"
+          } else {
+            C:\msys64\usr\bin\bash.exe -lc "cmake -G 'MSYS Makefiles' -DCMAKE_BUILD_TYPE=Release -DENABLE_QT_TRANSLATION=ON -DCITRA_ENABLE_COMPATIBILITY_REPORTING=${COMPAT} -DENABLE_COMPATIBILITY_LIST_DOWNLOAD=ON -DMINGW_STATIC_BUILD=ON .. 2>&1"
+            # remove libressl's libssl.a and libcrypto.a from linking script to avoid conflicting with mingw libraries
+            C:\msys64\usr\bin\bash.exe -lc "sed -i -E 's|../../externals/libressl/(ssl/libssl\|crypto/libcrypto).a||g' src/citra_qt/CMakeFiles/citra-qt.dir/build.make"
+          }
         }
   - cd ..
 
@@ -56,7 +67,7 @@ build_script:
           # https://www.appveyor.com/docs/build-phase
           msbuild msvc_build/citra.sln /maxcpucount /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll"
         } else {
-          C:\msys64\usr\bin\bash.exe -lc 'mingw32-make -j4 -C mingw_build/ 2>&1'
+          C:\msys64\usr\bin\bash.exe -lc "mingw32-make -j4 -C $($env:BUILD_TYPE)_build/ 2>&1"
         }
 
 after_build:
@@ -96,9 +107,9 @@ after_build:
           7z a -tzip $MSVC_BUILD_ZIP $RELEASE_DIST\*
           7z a $MSVC_SEVENZIP $RELEASE_DIST
         } else {
-          $MINGW_BUILD_ZIP = "citra-windows-mingw-$GITDATE-$GITREV.zip" -replace " ", ""
-          $MINGW_BUILD_PDB = "citra-windows-mingw-$GITDATE-$GITREV-debugsymbols.zip" -replace " ", ""
-          $MINGW_SEVENZIP = "citra-windows-mingw-$GITDATE-$GITREV.7z" -replace " ", ""
+          $MINGW_BUILD_ZIP = "citra-windows-$($env:BUILD_TYPE)-$GITDATE-$GITREV.zip" -replace " ", ""
+          $MINGW_BUILD_PDB = "citra-windows-$($env:BUILD_TYPE)-$GITDATE-$GITREV-debugsymbols.zip" -replace " ", ""
+          $MINGW_SEVENZIP = "citra-windows-$($env:BUILD_TYPE)-$GITDATE-$GITREV.7z" -replace " ", ""
 
           # store the build information in env vars so we can use them as artifacts
           $env:BUILD_ZIP = $MINGW_BUILD_ZIP
@@ -106,42 +117,46 @@ after_build:
           $env:BUILD_UPDATE = $MINGW_SEVENZIP
 
           $CMAKE_SOURCE_DIR = "$env:APPVEYOR_BUILD_FOLDER"
-          $CMAKE_BINARY_DIR = "$CMAKE_SOURCE_DIR/mingw_build"
-          $RELEASE_DIST = $RELEASE_DIST + "-mingw"
+          $CMAKE_BINARY_DIR = "$CMAKE_SOURCE_DIR/$($env:BUILD_TYPE)_build"
+          $RELEASE_DIST = $RELEASE_DIST + "-$($env:BUILD_TYPE)"
 
           mkdir $RELEASE_DIST
-          mkdir $RELEASE_DIST/platforms
-          mkdir $RELEASE_DIST/mediaservice
-          mkdir $RELEASE_DIST/styles
-          mkdir $RELEASE_DIST/imageformats
+          if ($env:BUILD_TYPE -eq 'mingw') {
+            mkdir $RELEASE_DIST/platforms
+            mkdir $RELEASE_DIST/mediaservice
+            mkdir $RELEASE_DIST/styles
+            mkdir $RELEASE_DIST/imageformats
+          }
 
           # copy the compiled binaries and other release files to the release folder
           Get-ChildItem "$CMAKE_BINARY_DIR" -Recurse -Filter "citra*.exe" | Copy-Item -destination $RELEASE_DIST
           Copy-Item -path "$CMAKE_SOURCE_DIR/license.txt" -destination $RELEASE_DIST
           Copy-Item -path "$CMAKE_SOURCE_DIR/README.md" -destination $RELEASE_DIST
 
-          # copy all the dll dependencies to the release folder
-          . "./.appveyor/FindDependencies.ps1"
-          $DLLSearchPath = "C:\msys64\mingw64\bin;$env:PATH"
-          $MingwDLLs = RecursivelyGetDeps $DLLSearchPath "$RELEASE_DIST\citra.exe"
-          $MingwDLLs += RecursivelyGetDeps $DLLSearchPath  "$RELEASE_DIST\citra-qt.exe"
-          Write-Host "Detected the following dependencies:"
-          Write-Host $MingwDLLs
-          foreach ($file in $MingwDLLs) {
-            Copy-Item -path "$file" -force -destination "$RELEASE_DIST"
+          if ($env:BUILD_TYPE -eq 'mingw') {
+            # copy all the dll dependencies to the release folder
+            . "./.appveyor/FindDependencies.ps1"
+            $DLLSearchPath = "C:\msys64\mingw64\bin;$env:PATH"
+            $MingwDLLs = RecursivelyGetDeps $DLLSearchPath "$RELEASE_DIST\citra.exe"
+            $MingwDLLs += RecursivelyGetDeps $DLLSearchPath  "$RELEASE_DIST\citra-qt.exe"
+            Write-Host "Detected the following dependencies:"
+            Write-Host $MingwDLLs
+            foreach ($file in $MingwDLLs) {
+              Copy-Item -path "$file" -force -destination "$RELEASE_DIST"
+            }
+
+            # copy the qt windows plugin dll to platforms
+            Copy-Item -path "C:/msys64/mingw64/share/qt5/plugins/platforms/qwindows.dll" -force -destination "$RELEASE_DIST/platforms"
+
+            # copy the qt mediaservice plugin dll
+            Copy-Item -path "C:/msys64/mingw64/share/qt5/plugins/mediaservice/dsengine.dll" -force -destination "$RELEASE_DIST/mediaservice"
+
+            # copy the qt windows vista style dll to platforms
+            Copy-Item -path "C:/msys64/mingw64/share/qt5/plugins/styles/qwindowsvistastyle.dll" -force -destination "$RELEASE_DIST/styles"
+
+            # copy the qt imageformats plugin dlls to imageformats
+            Get-ChildItem "C:/msys64/mingw64/share/qt5/plugins/imageformats" -Exclude "*d.dll" | Copy-Item -force -destination "$RELEASE_DIST/imageformats"
           }
-
-          # copy the qt windows plugin dll to platforms
-          Copy-Item -path "C:/msys64/mingw64/share/qt5/plugins/platforms/qwindows.dll" -force -destination "$RELEASE_DIST/platforms"
-
-          # copy the qt mediaservice plugin dll
-          Copy-Item -path "C:/msys64/mingw64/share/qt5/plugins/mediaservice/dsengine.dll" -force -destination "$RELEASE_DIST/mediaservice"
-
-          # copy the qt windows vista style dll to platforms
-          Copy-Item -path "C:/msys64/mingw64/share/qt5/plugins/styles/qwindowsvistastyle.dll" -force -destination "$RELEASE_DIST/styles"
-
-          # copy the qt imageformats plugin dlls to imageformats
-          Get-ChildItem "C:/msys64/mingw64/share/qt5/plugins/imageformats" -Exclude "*d.dll" | Copy-Item -force -destination "$RELEASE_DIST/imageformats"
 
           # process PDBs
           . "./.appveyor/ProcessPdb.ps1"

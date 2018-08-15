@@ -20,14 +20,6 @@
 #include <shlobj.h> // for SHGetFolderPath
 #include <tchar.h>
 #include "common/string_util.h"
-
-// 64 bit offsets for windows
-#define fseeko _fseeki64
-#define ftello _ftelli64
-#define atoll _atoi64
-#define stat _stat64
-#define fstat _fstat64
-#define fileno _fileno
 #else
 #ifdef __APPLE__
 #include <sys/param.h>
@@ -60,6 +52,16 @@
 
 #include <algorithm>
 #include <sys/stat.h>
+
+#ifdef _WIN32
+// 64 bit offsets for windows
+#define fseeko _fseeki64
+#define ftello _ftelli64
+#define atoll _atoi64
+#define stat _stat64
+#define fstat _fstat64
+#define fileno _fileno
+#endif
 
 #ifndef S_ISDIR
 #define S_ISDIR(m) (((m)&S_IFMT) == S_IFDIR)

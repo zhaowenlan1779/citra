@@ -60,6 +60,14 @@
 
 #ifdef QT_STATICPLUGIN
 Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
+Q_IMPORT_PLUGIN(DSServicePlugin);
+Q_IMPORT_PLUGIN(QGifPlugin);
+Q_IMPORT_PLUGIN(QJpegPlugin);
+Q_IMPORT_PLUGIN(QICOPlugin);
+
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+Q_IMPORT_PLUGIN(QWindowsVistaStylePlugin);
+#endif
 #endif
 
 #ifdef _WIN32

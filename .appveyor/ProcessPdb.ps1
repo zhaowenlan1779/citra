@@ -1,5 +1,5 @@
 # Generate pdb files for mingw
-if ($env:BUILD_TYPE -eq 'mingw') {
+if ($env:BUILD_TYPE.StartsWith('mingw')) {
   Invoke-WebRequest -Uri https://raw.githubusercontent.com/citra-emu/ext-windows-bin/master/cv2pdb/cv2pdb.exe -OutFile cv2pdb.exe
   foreach ($exe in Get-ChildItem "$RELEASE_DIST" -Recurse -Filter "citra*.exe") {
     .\cv2pdb $exe.FullName
