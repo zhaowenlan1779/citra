@@ -175,8 +175,11 @@ void QtMultimediaCameraHandler::CreateCamera(const std::string& camera_name) {
     camera->setViewfinder(&camera_surface);
     camera->load();
     // The gstreamer plugin (used on linux systems) seems to require explicit setting of
-    // a supported pixel format
-    settings.setPixelFormat(camera->supportedViewfinderPixelFormats().first());
+    // a supported pixel format. Sort the pixel formats first to prefer using those
+    // with a smaller index (they are usually better supported).
+    auto pixel_formats = camera->supportedViewfinderPixelFormats();
+    std::sort(pixel_formats.begin(), pixel_formats.end());
+    settings.setPixelFormat(pixel_formats.first());
 }
 
 void QtMultimediaCameraHandler::StopCamera() {
