@@ -174,6 +174,9 @@ void QtMultimediaCameraHandler::CreateCamera(const std::string& camera_name) {
     settings.setMaximumFrameRate(30);
     camera->setViewfinder(&camera_surface);
     camera->load();
+    // The gstreamer plugin (used on linux systems) seems to require explicit setting of
+    // a supported pixel format
+    settings.setPixelFormat(camera->supportedViewfinderPixelFormats().first());
 }
 
 void QtMultimediaCameraHandler::StopCamera() {
