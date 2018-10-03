@@ -25,6 +25,9 @@ option(USE_DISCORD_PRESENCE "Enables Discord Rich Presence" OFF)
 option(ENABLE_SCRIPTING "Enables scripting support" OFF)
 
 if(NOT EXISTS ${PROJECT_SOURCE_DIR}/.git/hooks/pre-commit)
+CMAKE_DEPENDENT_OPTION(CITRA_USE_BUNDLED_FFMPEG "Download bundled FFmpeg binaries" ON "MSVC" OFF)
+
+if(NOT EXISTS ${CMAKE_SOURCE_DIR}/.git/hooks/pre-commit)
     message(STATUS "Copying pre-commit hook")
     file(COPY hooks/pre-commit
         DESTINATION ${PROJECT_SOURCE_DIR}/.git/hooks)
@@ -251,6 +254,31 @@ if (ENABLE_QT)
     if (ENABLE_QT_TRANSLATION)
         find_package(Qt5 REQUIRED COMPONENTS LinguistTools ${QT_PREFIX_HINT})
     endif()
+endif()
+
+if (CITRA_USE_BUNDLED_FFMPEG)
+    if ((MSVC_VERSION GREATER_EQUAL 1910 AND MSVC_VERSION LESS 1920) AND ARCHITECTURE_x86_64)
+        set(FFmpeg_VER "ffmpeg-4.0.2-msvc")
+    else()
+        message(FATAL_ERROR "No bundled FFmpeg binaries for your toolchain. Disable CITRA_USE_BUNDLED_FFMPEG and provide your own.")
+    endif()
+
+    if (DEFINED FFmpeg_VER)
+        download_bundled_external("ffmpeg/" ${FFmpeg_VER} FFmpeg_PREFIX)
+        set(FFMPEG_DIR "${FFmpeg_PREFIX}")
+    endif()
+endif()
+
+find_package(FFmpeg REQUIRED COMPONENTS avcodec avformat swscale)
+if ("${FFmpeg_avcodec_VERSION}" VERSION_LESS "57.48.101")
+    message(FATAL_ERROR "Found version for libavcodec is too low. The required version is at least 57.48.101 (included in FFmpeg 3.1 and later).")
+endif()
+
+if (ENABLE_WEB_SERVICE)
+    add_definitions(-DENABLE_WEB_SERVICE)
+endif()
+if (CITRA_ENABLE_COMPATIBILITY_REPORTING)
+    add_definitions(-DCITRA_ENABLE_COMPATIBILITY_REPORTING)
 endif()
 
 if (ENABLE_SCRIPTING)
