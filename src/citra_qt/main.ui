@@ -336,6 +336,14 @@
     <string>Capture Screenshot</string>
    </property>
   </action>
+  <action name="action_Dump_Frames">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Dump Frames</string>
+   </property>
+  </action>
   <action name="action_View_Lobby">
    <property name="enabled">
     <bool>true</bool>

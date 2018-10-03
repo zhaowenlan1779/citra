@@ -184,6 +184,8 @@ private slots:
     void OnPlayMovie();
     void OnStopRecordingPlayback();
     void OnCaptureScreenshot();
+    void OnStartFrameDumping();
+    void OnStopFrameDumping();
     void OnCoreError(Core::System::ResultStatus, std::string);
     /// Called whenever a user selects Help->About Citra
     void OnMenuAboutCitra();
@@ -228,6 +230,10 @@ private:
     // Movie
     bool movie_record_on_start = false;
     QString movie_record_path;
+
+    // Dump frames
+    bool frame_dumping_on_start = false;
+    QString frame_dumping_path_top, frame_dumping_path_bottom;
 
     // Debugger panes
     ProfilerWidget* profilerWidget;
