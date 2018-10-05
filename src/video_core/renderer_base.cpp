@@ -7,6 +7,7 @@
 #include "core/3ds.h"
 #include "core/core.h"
 #include "core/frontend/emu_window.h"
+#include "core/frontend/framebuffer_layout.h"
 #include "core/hw/hw.h"
 #include "core/hw/lcd.h"
 #include "video_core/frame_dumper.h"
@@ -42,12 +43,16 @@ void RendererBase::RefreshRasterizerSetting() {
 
 bool RendererBase::StartFrameDumping(const std::string& path_top, const std::string& path_bottom,
                                      const std::string& format) {
-    if (!frame_dumpers[0]->StartDumping(path_top, format, Core::kScreenTopWidth,
-                                        Core::kScreenTopHeight)) {
+    const Layout::FramebufferLayout layout{
+        Layout::FrameLayoutFromResolutionScale(VideoCore::GetResolutionScaleFactor())};
+    if (!frame_dumpers[0]->StartDumping(
+            path_top, format, Core::kScreenTopWidth * VideoCore::GetResolutionScaleFactor(),
+            Core::kScreenTopHeight * VideoCore::GetResolutionScaleFactor())) {
         return false;
     }
-    if (!frame_dumpers[1]->StartDumping(path_bottom, format, Core::kScreenBottomWidth,
-                                        Core::kScreenBottomHeight)) {
+    if (!frame_dumpers[1]->StartDumping(
+            path_bottom, format, Core::kScreenBottomWidth * VideoCore::GetResolutionScaleFactor(),
+            Core::kScreenBottomHeight * VideoCore::GetResolutionScaleFactor())) {
         return false;
     }
     dump_frames = true;
@@ -58,9 +63,7 @@ void RendererBase::StopFrameDumping() {
     if (!dump_frames)
         return;
     dump_frames = false;
-    frame_dump_completed.Wait();
-    frame_dumpers[0]->StopDumping();
-    frame_dumpers[1]->StopDumping();
+    stop_dumping = true;
 }
 
 u32 RendererBase::GetColorFillForFramebuffer(int framebuffer_index) {
@@ -71,64 +74,4 @@ u32 RendererBase::GetColorFillForFramebuffer(int framebuffer_index) {
     LCD::Regs::ColorFill color_fill = {0};
     LCD::Read(color_fill.raw, lcd_color_addr);
     return color_fill.raw;
-}
-
-void RendererBase::DumpFrame() {
-    frame_dump_completed.Reset();
-    // We swap width and height here as we are going to rotate the image as we copy it
-    // 3ds framebuffers are stored rotate 90 degrees
-    for (int i : {0, 1}) {
-        const auto& framebuffer = GPU::g_regs.framebuffer_config[i];
-        FrameDumper::FrameData frame_data{framebuffer.height, framebuffer.width};
-        LCD::Regs::ColorFill color_fill{GetColorFillForFramebuffer(i)};
-        u8* dest_buffer = frame_data.data.data();
-        if (color_fill.is_enabled) {
-            std::array<u8, 3> source;
-            source[0] = color_fill.color_b;
-            source[1] = color_fill.color_g;
-            source[2] = color_fill.color_r;
-            for (u32 y = 0; y < framebuffer.width; y++) {
-                for (u32 x = 0; x < framebuffer.height; x++) {
-                    u8* px_dest = dest_buffer + 3 * (x + framebuffer.height * y);
-                    std::memcpy(px_dest, source.data(), 3);
-                }
-            }
-        } else {
-            const PAddr framebuffer_addr =
-                framebuffer.active_fb == 0 ? framebuffer.address_left1 : framebuffer.address_left2;
-            Memory::RasterizerFlushRegion(framebuffer_addr,
-                                          framebuffer.stride * framebuffer.height);
-            const u8* framebuffer_data = Memory::GetPhysicalPointer(framebuffer_addr);
-            int bpp = GPU::Regs::BytesPerPixel(framebuffer.color_format);
-            // x,y here are in destination pixels
-            for (u32 y = 0; y < framebuffer.width; y++) {
-                for (u32 x = 0; x < framebuffer.height; x++) {
-                    u8* px_dest =
-                        dest_buffer + 3 * (x + framebuffer.height * (framebuffer.width - y - 1));
-                    const u8* px_source = framebuffer_data + bpp * (y + framebuffer.width * x);
-                    Math::Vec4<u8> source;
-                    switch (framebuffer.color_format) {
-                    case GPU::Regs::PixelFormat::RGB8:
-                        source = Color::DecodeRGB8(px_source);
-                        break;
-                    case GPU::Regs::PixelFormat::RGBA8:
-                        source = Color::DecodeRGBA8(px_source);
-                        break;
-                    case GPU::Regs::PixelFormat::RGBA4:
-                        source = Color::DecodeRGBA4(px_source);
-                        break;
-                    case GPU::Regs::PixelFormat::RGB5A1:
-                        source = Color::DecodeRGB5A1(px_source);
-                        break;
-                    case GPU::Regs::PixelFormat::RGB565:
-                        source = Color::DecodeRGB565(px_source);
-                        break;
-                    }
-                    std::memcpy(px_dest, &source, 3);
-                }
-            }
-        }
-        frame_dumpers[i]->AddFrame(frame_data);
-    }
-    frame_dump_completed.Set();
 }

@@ -6,6 +6,21 @@
 #include "common/logging/log.h"
 #include "video_core/frame_dumper.h"
 
+FrameDumper::FrameData::FrameData(size_t width_, size_t height_, u8* data_)
+    : width(width_), height(height_) {
+    LOG_INFO(Render, "Copying the frame");
+    // rotate the data by 270 degrees while copying
+    stride = width * 4;
+    data.resize(width * height * 4);
+    for (size_t x = 0; x < height; x++)
+        for (size_t y = 0; y < width; y++) {
+            for (size_t k = 0; k < 4; k++) {
+                data[(height - 1 - x) * stride + y * 4 + k] = data_[y * height * 4 + x * 4 + k];
+            }
+        }
+    LOG_INFO(Render, "Frame copying completed");
+}
+
 void FrameDumper::Initialize() {
     static bool initialized = false;
     if (initialized)
@@ -132,10 +147,26 @@ bool FrameDumper::StartDumping(const std::string& path, const std::string& forma
         FreeResources();
         return false;
     }
+    frame_processing_thread = std::thread([&] {
+        FrameData frame;
+        while (frame_queue.PopWait(frame)) {
+            if (frame.width == 0 && frame.height == 0) {
+                // An empty frame marks the end of frame data
+                break;
+            }
+            ProcessFrame(frame);
+        }
+        EndDumping();
+    });
     return true;
 }
 
 void FrameDumper::AddFrame(FrameData& frame) {
+    frame_queue.Push(std::move(frame));
+}
+
+void FrameDumper::ProcessFrame(FrameData& frame) {
+    LOG_INFO(Render, "Processing the frame");
     if (frame.width != width || frame.height != height) {
         LOG_ERROR(Render, "Frame dropped: resolution does not match");
         return;
@@ -179,8 +210,8 @@ void FrameDumper::AddFrame(FrameData& frame) {
         WritePacket(packet);
 }
 
-void FrameDumper::StopDumping() {
-    LOG_INFO(Render, "Stopping frame dumping");
+void FrameDumper::EndDumping() {
+    LOG_INFO(Render, "Ending frame dumping");
     av_write_trailer(format_context);
     FreeResources();
 }

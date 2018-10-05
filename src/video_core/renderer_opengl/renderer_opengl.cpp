@@ -10,6 +10,7 @@
 #include "common/assert.h"
 #include "common/bit_field.h"
 #include "common/logging/log.h"
+#include "core/3ds.h"
 #include "core/core.h"
 #include "core/core_timing.h"
 #include "core/frontend/emu_window.h"
@@ -20,6 +21,7 @@
 #include "core/settings.h"
 #include "core/tracer/recorder.h"
 #include "video_core/debug_utils/debug_utils.h"
+#include "video_core/frame_dumper.h"
 #include "video_core/rasterizer_interface.h"
 #include "video_core/renderer_opengl/renderer_opengl.h"
 #include "video_core/video_core.h"
@@ -135,10 +137,16 @@ void RendererOpenGL::SwapBuffers() {
 
     DrawScreens();
 
-    Core::System::GetInstance().perf_stats.EndSystemFrame();
+    // Check if frame dumping was stopped within the last frame
+    // If so, we need to write an empty frame to mark the end of frame queue
+    if (stop_dumping.exchange(false)) {
+        // Add an empty data to mark the end of frame queue
+        FrameDumper::FrameData empty_data;
+        for (auto& frame_dumper : frame_dumpers)
+            frame_dumper->AddFrame(empty_data);
+    }
 
-    if (dump_frames)
-        DumpFrame();
+    Core::System::GetInstance().perf_stats.EndSystemFrame();
 
     // Swap buffers
     render_window.PollEvents();
@@ -290,6 +298,8 @@ void RendererOpenGL::InitOpenGLObjects() {
         screen_info.display_texture = screen_info.texture.resource.handle;
     }
 
+    glGenBuffers(4, frame_dumping_pbos[0]);
+
     state.texture_units[0].texture_2d = 0;
     state.Apply();
 }
@@ -358,7 +368,7 @@ void RendererOpenGL::ConfigureFramebufferTexture(TextureInfo& texture,
  * rotation.
  */
 void RendererOpenGL::DrawSingleScreenRotated(const ScreenInfo& screen_info, float x, float y,
-                                             float w, float h) {
+                                             float w, float h, int screen_id) {
     auto& texcoords = screen_info.display_texcoords;
 
     std::array<ScreenRectVertex, 4> vertices = {{
@@ -370,6 +380,47 @@ void RendererOpenGL::DrawSingleScreenRotated(const ScreenInfo& screen_info, floa
 
     state.texture_units[0].texture_2d = screen_info.display_texture;
     state.Apply();
+
+    if (dump_frames) {
+        int width, height;
+        if (screen_id == 0) {
+            width = Core::kScreenTopWidth * VideoCore::GetResolutionScaleFactor();
+            height = Core::kScreenTopHeight * VideoCore::GetResolutionScaleFactor();
+        } else {
+            width = Core::kScreenBottomWidth * VideoCore::GetResolutionScaleFactor();
+            height = Core::kScreenBottomHeight * VideoCore::GetResolutionScaleFactor();
+        }
+
+        // Read the pixels back. Use PBOs to make the process quicker
+        current_pbo[screen_id] = (current_pbo[screen_id] + 1) % 2;
+        next_pbo[screen_id] = (current_pbo[screen_id] + 1) % 2;
+
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, frame_dumping_pbos[screen_id][current_pbo[screen_id]]);
+        if (width != pbo_width[screen_id][current_pbo[screen_id]] ||
+            height != pbo_height[screen_id][current_pbo[screen_id]]) {
+            // re-allocate storage for pbo
+            glBufferData(GL_PIXEL_PACK_BUFFER, width * height * 4, nullptr, GL_STREAM_READ);
+            pbo_width[screen_id][current_pbo[screen_id]] = width;
+            pbo_height[screen_id][current_pbo[screen_id]] = height;
+        }
+        glGetTexImage(GL_TEXTURE_2D, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, 0);
+
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, frame_dumping_pbos[screen_id][next_pbo[screen_id]]);
+        if (width != pbo_width[screen_id][next_pbo[screen_id]] ||
+            height != pbo_height[screen_id][next_pbo[screen_id]]) {
+            // re-allocate storage for pbo
+            glBufferData(GL_PIXEL_PACK_BUFFER, width * height * 4, nullptr, GL_STREAM_READ);
+            pbo_width[screen_id][next_pbo[screen_id]] = width;
+            pbo_height[screen_id][next_pbo[screen_id]] = height;
+        }
+        GLubyte* pixels = (GLubyte*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
+
+        FrameDumper::FrameData frame_data{width, height, pixels};
+        frame_dumpers[screen_id]->AddFrame(frame_data);
+
+        glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+    }
 
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices.data());
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -407,30 +458,30 @@ void RendererOpenGL::DrawScreens() {
     if (layout.top_screen_enabled) {
         if (!Settings::values.toggle_3d) {
             DrawSingleScreenRotated(screen_infos[0], (float)top_screen.left, (float)top_screen.top,
-                                    (float)top_screen.GetWidth(), (float)top_screen.GetHeight());
+                                    (float)top_screen.GetWidth(), (float)top_screen.GetHeight(), 0);
         } else {
             DrawSingleScreenRotated(screen_infos[0], (float)top_screen.left / 2,
                                     (float)top_screen.top, (float)top_screen.GetWidth() / 2,
-                                    (float)top_screen.GetHeight());
+                                    (float)top_screen.GetHeight(), 0);
             DrawSingleScreenRotated(screen_infos[1],
                                     ((float)top_screen.left / 2) + ((float)layout.width / 2),
                                     (float)top_screen.top, (float)top_screen.GetWidth() / 2,
-                                    (float)top_screen.GetHeight());
+                                    (float)top_screen.GetHeight(), 0);
         }
     }
     if (layout.bottom_screen_enabled) {
         if (!Settings::values.toggle_3d) {
             DrawSingleScreenRotated(screen_infos[2], (float)bottom_screen.left,
                                     (float)bottom_screen.top, (float)bottom_screen.GetWidth(),
-                                    (float)bottom_screen.GetHeight());
+                                    (float)bottom_screen.GetHeight(), 1);
         } else {
             DrawSingleScreenRotated(screen_infos[2], (float)bottom_screen.left / 2,
                                     (float)bottom_screen.top, (float)bottom_screen.GetWidth() / 2,
-                                    (float)bottom_screen.GetHeight());
+                                    (float)bottom_screen.GetHeight(), 1);
             DrawSingleScreenRotated(screen_infos[2],
                                     ((float)bottom_screen.left / 2) + ((float)layout.width / 2),
                                     (float)bottom_screen.top, (float)bottom_screen.GetWidth() / 2,
-                                    (float)bottom_screen.GetHeight());
+                                    (float)bottom_screen.GetHeight(), 1);
         }
     }
 
@@ -531,4 +582,6 @@ Core::System::ResultStatus RendererOpenGL::Init() {
 }
 
 /// Shutdown the renderer
-void RendererOpenGL::ShutDown() {}
+void RendererOpenGL::ShutDown() {
+    glDeleteBuffers(4, frame_dumping_pbos[0]);
+}

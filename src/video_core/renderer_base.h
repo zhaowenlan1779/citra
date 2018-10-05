@@ -69,11 +69,14 @@ protected:
     f32 m_current_fps = 0.0f;             ///< Current framerate, should be set by the renderers
     int m_current_frame = 0;              ///< Current frame, should be set by the renderer
     std::atomic_bool dump_frames = false; ///< Whether to dump frames
+    std::atomic_bool stop_dumping =
+        false; ///< Whether to stop dumping. If the renderer receive this singal, it should write an
+               ///< "end" marker frame to the frame dumping queue
     Common::Event
-        frame_dump_completed; ///< An event used to finish dumping frames on emulation stopping
+        frame_dumping_stopped; ///< An event to mark the stopping of frame dumping. This is used to
+                               ///< prevent game being stopped before "end" frame is written
 
     u32 GetColorFillForFramebuffer(int framebuffer_index);
-    void DumpFrame();
 
 private:
     bool opengl_rasterizer_active = false;

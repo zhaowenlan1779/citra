@@ -3,8 +3,10 @@
 // Refer to the license.txt file included.
 
 #include <array>
+#include <thread>
 #include <vector>
 #include "common/common_types.h"
+#include "common/threadsafe_queue.h"
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -29,10 +31,7 @@ public:
         u32 stride;
         std::vector<u8> data;
 
-        FrameData(size_t width_, size_t height_)
-            : width(width_), height(height_), stride(width_ * 3) {
-            data.resize(width * height * 3);
-        }
+        FrameData(size_t width_ = 0, size_t height_ = 0, u8* data_ = nullptr);
     };
 
     /// Initializes ffmpeg libraries. Does nothing if ffmpeg is already initialized.
@@ -40,7 +39,6 @@ public:
     void Shutdown();
 
     bool StartDumping(const std::string& path, const std::string& format, int width, int height);
-    void StopDumping();
     bool IsDumpingFrames();
 
     void AddFrame(FrameData& frame);
@@ -50,6 +48,8 @@ private:
     void FreeResources();
     /// Writes the encoded frame to the video file
     void WritePacket(AVPacket& packet);
+    void ProcessFrame(FrameData& frame);
+    void EndDumping();
 
     int width, height;
     bool is_dumping = false;
@@ -62,7 +62,10 @@ private:
     SwsContext* sws_context{};
 
     u64 frame_count{};
+    Common::SPSCQueue<FrameData> frame_queue;
+
+    std::thread frame_processing_thread;
 
     /// The pixel format the frames are stored in
-    static constexpr AVPixelFormat pixel_format = AVPixelFormat::AV_PIX_FMT_RGB24;
+    static constexpr AVPixelFormat pixel_format = AVPixelFormat::AV_PIX_FMT_BGRA;
 };
