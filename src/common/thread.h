@@ -67,6 +67,52 @@ private:
     std::mutex mutex;
 };
 
+class Signal {
+public:
+    Signal() : is_set(false) {}
+
+    void Set() {
+        std::lock_guard<std::mutex> lk(mutex);
+        if (!is_set) {
+            is_set = true;
+            condvar.notify_all();
+        }
+    }
+
+    void Wait() {
+        std::unique_lock<std::mutex> lk(mutex);
+        condvar.wait(lk, [&] { return is_set; });
+    }
+
+    template <class Duration>
+    bool WaitFor(const std::chrono::duration<Duration>& time) {
+        std::unique_lock<std::mutex> lk(mutex);
+        if (!condvar.wait_for(lk, time, [this] { return is_set; }))
+            return false;
+        return true;
+    }
+
+    template <class Clock, class Duration>
+    bool WaitUntil(const std::chrono::time_point<Clock, Duration>& time) {
+        std::unique_lock<std::mutex> lk(mutex);
+        if (!condvar.wait_until(lk, time, [this] { return is_set; }))
+            return false;
+        return true;
+    }
+
+    void Reset() {
+        std::unique_lock<std::mutex> lk(mutex);
+        // no other action required, since wait loops on the predicate and any lingering signal will
+        // get cleared on the first iteration
+        is_set = false;
+    }
+
+private:
+    bool is_set;
+    std::condition_variable condvar;
+    std::mutex mutex;
+};
+
 class Barrier {
 public:
     explicit Barrier(std::size_t count_) : count(count_), waiting(0), generation(0) {}

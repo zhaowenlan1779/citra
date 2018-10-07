@@ -88,6 +88,13 @@ public:
         return Pop(t);
     }
 
+    void WaitWhileEmpty() {
+        if (Empty()) {
+            std::unique_lock<std::mutex> lock(cv_mutex);
+            cv.wait(lock, [this]() { return !Empty(); });
+        }
+    }
+
     // not thread-safe
     void Clear() {
         size.store(0);

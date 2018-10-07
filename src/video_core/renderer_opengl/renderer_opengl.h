@@ -8,6 +8,7 @@
 #include <glad/glad.h>
 #include "common/common_types.h"
 #include "common/math_util.h"
+#include "common/thread.h"
 #include "core/frontend/framebuffer_layout.h"
 #include "core/hw/gpu.h"
 #include "video_core/renderer_base.h"
@@ -81,7 +82,11 @@ private:
     GLuint attrib_tex_coord;
 
     // PBOs used to dump frames faster
-    std::array<std::array<OGLBuffer, 2>, 2> frame_dumping_pbos;
-    std::array<GLuint, 2> current_pbo{1, 1}, next_pbo;
-    std::array<std::array<int, 2>, 2> pbo_width, pbo_height;
+    static constexpr std::size_t BufferCount = 12;
+    std::array<std::array<OGLBuffer, BufferCount>, 2> frame_dumping_pbos;
+    std::array<std::array<u8*, BufferCount>, 2> pbo_bits;
+    std::array<GLuint, 2> current_pbo{BufferCount - 1, BufferCount - 1}, next_pbo;
+    std::array<std::array<int, BufferCount>, 2> pbo_width, pbo_height;
+    std::array<std::array<Common::Signal, BufferCount>, 2> frame_copy_events;
+    std::array<std::array<GLsync, BufferCount>, 2> sync_fences = {};
 };

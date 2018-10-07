@@ -6,17 +6,29 @@
 #include "common/logging/log.h"
 #include "video_core/frame_dumper.h"
 
-FrameDumper::FrameData::FrameData(size_t width_, size_t height_, u8* data_)
-    : width(width_), height(height_) {
+FrameDumper::FrameData::FrameData(size_t width_, size_t height_, u8* data_,
+                                  Common::Signal& complete_signal_)
+    : width(width_), height(height_), complete_signal(complete_signal_) {
+    LOG_CRITICAL(Render, "frame copying started");
     // rotate the data by 270 degrees while copying
     stride = width * 4;
-    data.resize(width * height * 4);
-    for (size_t x = 0; x < height; x++)
-        for (size_t y = 0; y < width; y++) {
-            for (size_t k = 0; k < 4; k++) {
-                data[(height - 1 - x) * stride + y * 4 + k] = data_[y * height * 4 + x * 4 + k];
+    frame_copy_thread = std::make_unique<std::thread>([this, data_] {
+        data.resize(width * height * 4);
+        for (size_t x = 0; x < height; x++)
+            for (size_t y = 0; y < width; y++) {
+                for (size_t k = 0; k < 4; k++) {
+                    data[(height - 1 - x) * stride + y * 4 + k] = data_[y * height * 4 + x * 4 + k];
+                }
             }
-        }
+        LOG_CRITICAL(Render, "Frame copying completed");
+        complete_signal.Set();
+    });
+}
+
+FrameDumper::FrameData::~FrameData() {
+    LOG_CRITICAL(Render, "FrameData is deconstructed");
+    if (frame_copy_thread)
+        frame_copy_thread->join();
 }
 
 void FrameDumper::Initialize() {
@@ -151,20 +163,23 @@ bool FrameDumper::StartDumping(const std::string& path, const std::string& forma
     if (frame_processing_thread.joinable())
         frame_processing_thread.join();
     frame_processing_thread = std::thread([&] {
-        FrameData frame;
-        while (frame_queue.PopWait(frame)) {
-            if (frame.width == 0 && frame.height == 0) {
-                // An empty frame marks the end of frame data
+        while (true) {
+            frame_queue.WaitWhileEmpty();
+            auto& frame = frame_queue.Front();
+            if (!frame) {
+                // A nullptr marks the end of frame data
                 break;
             }
-            ProcessFrame(frame);
+            frame->complete_signal.Wait();
+            ProcessFrame(*frame);
+            frame_queue.Pop();
         }
         EndDumping();
     });
     return true;
 }
 
-void FrameDumper::AddFrame(FrameData& frame) {
+void FrameDumper::AddFrame(std::unique_ptr<FrameData> frame) {
     frame_queue.Push(std::move(frame));
 }
 
