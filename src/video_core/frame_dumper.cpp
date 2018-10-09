@@ -21,6 +21,7 @@ FrameDumper::FrameData::FrameData(size_t width_, size_t height_, u8* data_,
                 }
             }
         LOG_CRITICAL(Render, "Frame copying completed");
+        data_ready = true;
         complete_signal.Set();
     });
 }
@@ -170,7 +171,8 @@ bool FrameDumper::StartDumping(const std::string& path, const std::string& forma
                 // A nullptr marks the end of frame data
                 break;
             }
-            frame->complete_signal.Wait();
+            if (!frame->data_ready)
+                frame->complete_signal.Wait();
             ProcessFrame(*frame);
             frame_queue.Pop();
         }

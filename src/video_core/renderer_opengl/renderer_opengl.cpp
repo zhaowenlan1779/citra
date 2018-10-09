@@ -152,17 +152,18 @@ void RendererOpenGL::SwapBuffers() {
             }
             for (std::size_t j = 0; j < frame_dumping_pbos[i].size(); j++) {
                 glBindBuffer(GL_PIXEL_PACK_BUFFER, frame_dumping_pbos[i][j].handle);
-                glBufferStorage(GL_PIXEL_PACK_BUFFER, width * height * 4, nullptr,
+                glBufferStorage(GL_PIXEL_PACK_BUFFER, width * height * 4 * BufferCount, nullptr,
                                 GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT | GL_CLIENT_STORAGE_BIT);
-                pbo_bits[i][j] =
-                    static_cast<u8*>(glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, width * height * 4,
-                                                      GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT));
+                pbo_bits[i][j] = static_cast<u8*>(
+                    glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, width * height * 4 * BufferCount,
+                                     GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT));
                 glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
             }
         }
-        for (auto& events : frame_copy_events) {
-            for (auto& event : events) {
-                event.Set();
+        for (auto& eventss : frame_copy_events) {
+            for (auto& events : eventss) {
+                for (auto& event : events)
+                    event.Set();
             }
         }
         dump_frames = true;
@@ -439,43 +440,45 @@ void RendererOpenGL::DrawSingleScreenRotated(const ScreenInfo& screen_info, floa
 
         LOG_CRITICAL(Render, "Hello!");
         // Read the pixels back. Use PBOs to make the process quicker
-        current_pbo[screen_id] = (current_pbo[screen_id] + 1) % BufferCount;
-        next_pbo[screen_id] = (current_pbo[screen_id] + 1) % BufferCount;
+        current_segment = (current_segment + 1) % BufferCount;
+        if (current_segment == 0) {
+            current_idx = (current_idx + 1) % 2;
+            next_idx = (current_idx + 1) % 2;
+        }
 
-        frame_copy_events[screen_id][current_pbo[screen_id]].Wait();
+        int segment = current_segment;
+
+        frame_copy_events[screen_id][current_idx][segment].Wait();
 
         LOG_CRITICAL(Render, "going to bind the current pbo");
-        glBindBuffer(GL_PIXEL_PACK_BUFFER,
-                     frame_dumping_pbos[screen_id][current_pbo[screen_id]].handle);
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, frame_dumping_pbos[screen_id][current_idx].handle);
 
         LOG_CRITICAL(Render, "get tex image issued");
 
-        glGetTexImage(GL_TEXTURE_2D, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, 0);
-        sync_fences[screen_id][current_pbo[screen_id]] =
+        glGetTexImage(GL_TEXTURE_2D, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV,
+                      (void*)(segment * width * height * 4));
+        sync_fences[screen_id][current_idx][segment] =
             glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        have_written[screen_id][current_idx][segment] = 1;
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 
         LOG_CRITICAL(Render, "binding next buffer");
 
-        if (sync_fences[screen_id][next_pbo[screen_id]])
-            glClientWaitSync(sync_fences[screen_id][next_pbo[screen_id]], 0, UINT64_MAX);
-        glBindBuffer(GL_PIXEL_PACK_BUFFER,
-                     frame_dumping_pbos[screen_id][next_pbo[screen_id]].handle);
+        if (have_written[screen_id][next_idx][segment]) {
+            glClientWaitSync(sync_fences[screen_id][next_idx][segment], 0, UINT64_MAX);
+            LOG_CRITICAL(Render, "trying to map next pbo");
+            u8* pixels = pbo_bits[screen_id][next_idx] + width * height * 4 * segment;
+            LOG_CRITICAL(Render, "creating frame data for it");
 
-        LOG_CRITICAL(Render, "trying to map next pbo");
-        u8* pixels = pbo_bits[screen_id][next_pbo[screen_id]];
-        LOG_CRITICAL(Render, "creating frame data for it");
+            frame_copy_events[screen_id][next_idx][segment].Reset();
+            auto frame_data = std::make_unique<FrameDumper::FrameData>(
+                width, height, pixels, frame_copy_events[screen_id][next_idx][segment]);
 
-        frame_copy_events[screen_id][next_pbo[screen_id]].Reset();
-        auto frame_data = std::make_unique<FrameDumper::FrameData>(
-            width, height, pixels, frame_copy_events[screen_id][next_pbo[screen_id]]);
-
-        LOG_CRITICAL(Render, "adding frame");
-        frame_dumpers[screen_id]->AddFrame(std::move(frame_data));
-
-        LOG_CRITICAL(Render, "added frame, unbinding");
+            LOG_CRITICAL(Render, "adding frame");
+            frame_dumpers[screen_id]->AddFrame(std::move(frame_data));
+        }
 
         // glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
-        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
     }
 
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices.data());

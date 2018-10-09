@@ -29,12 +29,13 @@ public:
      */
     class FrameData {
     public:
-        size_t width;
-        size_t height;
-        u32 stride;
+        size_t width{};
+        size_t height{};
+        u32 stride{};
         std::vector<u8> data;
         std::unique_ptr<std::thread> frame_copy_thread;
         Common::Signal& complete_signal;
+        bool data_ready{};
 
         FrameData(size_t width_, size_t height_, u8* data_, Common::Signal& complete_signal);
         // FrameData& operator=(FrameData&& another) {

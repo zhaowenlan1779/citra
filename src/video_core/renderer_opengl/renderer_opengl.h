@@ -82,11 +82,12 @@ private:
     GLuint attrib_tex_coord;
 
     // PBOs used to dump frames faster
-    static constexpr std::size_t BufferCount = 12;
-    std::array<std::array<OGLBuffer, BufferCount>, 2> frame_dumping_pbos;
-    std::array<std::array<u8*, BufferCount>, 2> pbo_bits;
-    std::array<GLuint, 2> current_pbo{BufferCount - 1, BufferCount - 1}, next_pbo;
-    std::array<std::array<int, BufferCount>, 2> pbo_width, pbo_height;
-    std::array<std::array<Common::Signal, BufferCount>, 2> frame_copy_events;
-    std::array<std::array<GLsync, BufferCount>, 2> sync_fences = {};
+    static constexpr int BufferCount = 10;
+    std::array<std::array<OGLBuffer, 2>, 2> frame_dumping_pbos;
+    std::array<std::array<u8*, 2>, 2> pbo_bits;
+    GLuint current_idx{1}, next_idx;
+    int current_segment{BufferCount - 1};
+    std::array<std::array<std::array<Common::Signal, BufferCount>, 2>, 2> frame_copy_events;
+    std::array<std::array<std::array<GLsync, BufferCount>, 2>, 2> sync_fences = {};
+    std::array<std::array<std::array<bool, BufferCount>, 2>, 2> have_written = {};
 };
