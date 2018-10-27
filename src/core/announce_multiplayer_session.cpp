@@ -29,6 +29,20 @@ AnnounceMultiplayerSession::AnnounceMultiplayerSession() {
 #endif
 }
 
+void AnnounceMultiplayerSession::Register() {
+    std::shared_ptr<Network::Room> room = Network::GetRoom().lock();
+    if (!room) {
+        return;
+    }
+    if (room->GetState() != Network::Room::State::Open) {
+        return;
+    }
+    UpdateBackendData(room);
+    std::string result = backend->Register();
+    LOG_INFO(WebService, "Room has been registered");
+    room->SetVerifyUID(result);
+}
+
 void AnnounceMultiplayerSession::Start() {
     if (announce_multiplayer_thread) {
         Stop();
@@ -64,6 +78,20 @@ AnnounceMultiplayerSession::~AnnounceMultiplayerSession() {
     Stop();
 }
 
+void AnnounceMultiplayerSession::UpdateBackendData(std::shared_ptr<Network::Room> room) {
+    Network::RoomInformation room_information = room->GetRoomInformation();
+    std::vector<Network::Room::Member> memberlist = room->GetRoomMemberList();
+    backend->SetRoomInformation(
+        room_information.name, room_information.description, room_information.port,
+        room_information.member_slots, Network::network_version, room->HasPassword(),
+        room_information.preferred_game, room_information.preferred_game_id);
+    backend->ClearPlayers();
+    for (const auto& member : memberlist) {
+        backend->AddPlayer(member.username, member.nickname, member.avatar_url, member.mac_address,
+                           member.game_info.id, member.game_info.name);
+    }
+}
+
 void AnnounceMultiplayerSession::AnnounceMultiplayerLoop() {
     auto update_time = std::chrono::steady_clock::now();
     std::future<Common::WebResult> future;
@@ -76,24 +104,17 @@ void AnnounceMultiplayerSession::AnnounceMultiplayerLoop() {
         if (room->GetState() != Network::Room::State::Open) {
             break;
         }
-        Network::RoomInformation room_information = room->GetRoomInformation();
-        std::vector<Network::Room::Member> memberlist = room->GetRoomMemberList();
-        backend->SetRoomInformation(room_information.uid, room_information.name,
-                                    room_information.description, room_information.port,
-                                    room_information.member_slots, Network::network_version,
-                                    room->HasPassword(), room_information.preferred_game,
-                                    room_information.preferred_game_id);
-        backend->ClearPlayers();
-        for (const auto& member : memberlist) {
-            backend->AddPlayer(member.nickname, member.mac_address, member.game_info.id,
-                               member.game_info.name);
-        }
-        Common::WebResult result = backend->Announce();
+        UpdateBackendData(room);
+        Common::WebResult result = backend->Update();
         if (result.result_code != Common::WebResult::Code::Success) {
             std::lock_guard<std::mutex> lock(callback_mutex);
             for (auto callback : error_callbacks) {
                 (*callback)(result);
             }
+        }
+        if (result.result_string == "404") {
+            // Needs to register the room again
+            Register();
         }
     }
 }
