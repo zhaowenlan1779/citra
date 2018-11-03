@@ -44,11 +44,6 @@ public:
     void UnbindErrorCallback(CallbackHandle handle);
 
     /**
-     * Registers a room to web services
-     */
-    void Register();
-
-    /**
      * Starts the announce of a room to web services
      */
     void Start();
@@ -74,6 +69,8 @@ private:
     /// Backend interface that logs fields
     std::unique_ptr<AnnounceMultiplayerRoom::Backend> backend;
 
+    /// Registers a room to web services
+    void Register();
     void UpdateBackendData(std::shared_ptr<Network::Room> room);
     void AnnounceMultiplayerLoop();
 };

@@ -142,7 +142,6 @@ void HostRoomWindow::Host() {
         // Start the announce session if they chose Public
         if (is_public) {
             if (auto session = announce_multiplayer_session.lock()) {
-                session->Register();
                 session->Start();
             } else {
                 LOG_ERROR(Network, "Starting announce session failed");

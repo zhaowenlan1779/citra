@@ -93,6 +93,7 @@ void AnnounceMultiplayerSession::UpdateBackendData(std::shared_ptr<Network::Room
 }
 
 void AnnounceMultiplayerSession::AnnounceMultiplayerLoop() {
+    Register();
     auto update_time = std::chrono::steady_clock::now();
     std::future<Common::WebResult> future;
     while (!shutdown_event.WaitUntil(update_time)) {

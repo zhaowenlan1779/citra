@@ -207,7 +207,6 @@ int main(int argc, char** argv) {
         std::cout << "Room is open. Close with Q+Enter...\n\n";
         auto announce_session = std::make_unique<Core::AnnounceMultiplayerSession>();
         if (announce) {
-            announce_session->Register();
             announce_session->Start();
         }
         while (room->GetState() == Network::Room::State::Open) {
