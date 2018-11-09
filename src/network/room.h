@@ -54,6 +54,7 @@ enum RoomMessageTypes : u8 {
     IdSetGameInfo,
     IdWifiPacket,
     IdChatMessage,
+    IdStatusMessage,
     IdNameCollision,
     IdMacCollision,
     IdConsoleIdCollision,
@@ -61,6 +62,12 @@ enum RoomMessageTypes : u8 {
     IdWrongPassword,
     IdCloseRoom,
     IdRoomIsFull,
+};
+
+/// Types of system status messages
+enum StatusMessageTypes : u8 {
+    IdMemberJoin = 1, ///< Member joining
+    IdMemberLeave,    ///< Member leaving
 };
 
 /// This is what a server [person creating a server] would use.
