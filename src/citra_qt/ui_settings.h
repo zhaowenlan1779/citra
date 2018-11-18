@@ -80,6 +80,7 @@ struct Values {
     bool game_list_hide_no_icon;
 
     u16 screenshot_resolution_factor;
+    bool screenshot_add_overlay;
 
     QString roms_path;
     QString symbols_path;

@@ -208,6 +208,8 @@ void Config::ReadValues() {
         ReadSetting("enable_discord_presence", true).toBool();
     UISettings::values.screenshot_resolution_factor =
         static_cast<u16>(ReadSetting("screenshot_resolution_factor", 0).toUInt());
+    UISettings::values.screenshot_add_overlay =
+        ReadSetting("screenshot_add_overlay", false).toBool();
 
     qt_config->beginGroup("Updater");
     UISettings::values.check_for_update_on_start =
@@ -465,6 +467,7 @@ void Config::SaveValues() {
     WriteSetting("enable_discord_presence", UISettings::values.enable_discord_presence, true);
     WriteSetting("screenshot_resolution_factor", UISettings::values.screenshot_resolution_factor,
                  0);
+    WriteSetting("screenshot_add_overlay", UISettings::values.screenshot_add_overlay, false);
 
     qt_config->beginGroup("Updater");
     WriteSetting("check_for_update_on_start", UISettings::values.check_for_update_on_start, true);

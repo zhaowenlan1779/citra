@@ -1,11 +1,14 @@
 #include <QApplication>
+#include <QFont>
 #include <QHBoxLayout>
 #include <QKeyEvent>
+#include <QPainter>
 #include <QScreen>
 #include <QWindow>
 #include <fmt/format.h>
 
 #include "citra_qt/bootmanager.h"
+#include "citra_qt/ui_settings.h"
 #include "common/microprofile.h"
 #include "common/scm_rev.h"
 #include "core/3ds.h"
@@ -341,12 +344,34 @@ void GRenderWindow::CaptureScreenshot(u16 res_scale, const QString& screenshot_p
         res_scale = VideoCore::GetResolutionScaleFactor();
     const Layout::FramebufferLayout layout{Layout::FrameLayoutFromResolutionScale(res_scale)};
     screenshot_image = QImage(QSize(layout.width, layout.height), QImage::Format_RGB32);
-    VideoCore::RequestScreenshot(screenshot_image.bits(),
-                                 [=] {
-                                     screenshot_image.mirrored(false, true).save(screenshot_path);
-                                     LOG_INFO(Frontend, "The screenshot is saved.");
-                                 },
-                                 layout);
+    VideoCore::RequestScreenshot(
+        screenshot_image.bits(),
+        [=] {
+            screenshot_image = screenshot_image.mirrored(false, true);
+
+            if (UISettings::values.screenshot_add_overlay) {
+                // Paint citra icon and version text on the image
+                QPainter painter(&screenshot_image);
+                painter.setPen(QColor(255, 255, 255));
+
+                QFont font = painter.font();
+                font.setPixelSize(12 * res_scale);
+                painter.setFont(font);
+
+                painter.drawText(
+                    screenshot_image.rect(), Qt::AlignBottom | Qt::AlignRight,
+                    QString("Citra %1| %2").arg(Common::g_build_fullname, Common::g_scm_desc));
+                painter.drawPixmap(screenshot_image.width() - 32 * res_scale,
+                                   screenshot_image.height() - (12 + 32) * res_scale,
+                                   QIcon::fromTheme("citra").pixmap(256).scaled(
+                                       32 * res_scale, 32 * res_scale, Qt::IgnoreAspectRatio,
+                                       Qt::SmoothTransformation));
+            }
+
+            screenshot_image.save(screenshot_path);
+            LOG_INFO(Frontend, "The screenshot is saved.");
+        },
+        layout);
 }
 
 void GRenderWindow::OnMinimalClientAreaChangeRequest(
