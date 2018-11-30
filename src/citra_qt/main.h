@@ -184,6 +184,7 @@ private slots:
     void OnPlayMovie();
     void OnStopRecordingPlayback();
     void OnCaptureScreenshot();
+    void ChangeScreenshotResolution();
     void OnCoreError(Core::System::ResultStatus, std::string);
     /// Called whenever a user selects Help->About Citra
     void OnMenuAboutCitra();
@@ -246,6 +247,7 @@ private:
     bool defer_update_prompt = false;
 
     QAction* actions_recent_files[max_recent_files_item];
+    QActionGroup* actionGroup_screenshot_resolutions;
 
     QTranslator translator;
 

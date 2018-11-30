@@ -154,10 +154,27 @@
      <addaction name="action_Enable_Frame_Advancing"/>
      <addaction name="action_Advance_Frame"/>
     </widget>
+    <widget class="QMenu" name="menu_Screenshot">
+     <property name="title">
+      <string>Screenshot</string>
+     </property>
+     <addaction name="action_Capture_Screenshot"/>
+     <addaction name="separator"/>
+     <addaction name="action_Screenshot_Resolution_Auto"/>
+     <addaction name="action_Screenshot_Resolution_1"/>
+     <addaction name="action_Screenshot_Resolution_2"/>
+     <addaction name="action_Screenshot_Resolution_3"/>
+     <addaction name="action_Screenshot_Resolution_4"/>
+     <addaction name="action_Screenshot_Resolution_5"/>
+     <addaction name="action_Screenshot_Resolution_6"/>
+     <addaction name="action_Screenshot_Resolution_7"/>
+     <addaction name="action_Screenshot_Resolution_8"/>
+     <addaction name="action_Screenshot_Resolution_9"/>
+     <addaction name="action_Screenshot_Resolution_10"/>
+    </widget>
     <addaction name="menu_Movie"/>
     <addaction name="menu_Frame_Advance"/>
-    <addaction name="separator"/>
-    <addaction name="action_Capture_Screenshot"/>
+    <addaction name="menu_Screenshot"/>
    </widget>
    <widget class="QMenu" name="menu_Help">
     <property name="title">
@@ -334,6 +351,94 @@
    </property>
    <property name="text">
     <string>Capture Screenshot</string>
+   </property>
+  </action>
+  <action name="action_Screenshot_Resolution_Auto">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Auto (Internal Resolution)</string>
+   </property>
+  </action>
+  <action name="action_Screenshot_Resolution_1">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Native (400x240)</string>
+   </property>
+  </action>
+  <action name="action_Screenshot_Resolution_2">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>2x Native (800x480)</string>
+   </property>
+  </action>
+  <action name="action_Screenshot_Resolution_3">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>3x Native (1200x720)</string>
+   </property>
+  </action>
+  <action name="action_Screenshot_Resolution_4">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>4x Native (1600x960)</string>
+   </property>
+  </action>
+  <action name="action_Screenshot_Resolution_5">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>5x Native (2000x1200)</string>
+   </property>
+  </action>
+  <action name="action_Screenshot_Resolution_6">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>6x Native (2400x1440)</string>
+   </property>
+  </action>
+  <action name="action_Screenshot_Resolution_7">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>7x Native (2800x1680)</string>
+   </property>
+  </action>
+  <action name="action_Screenshot_Resolution_8">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>8x Native (3200x1920)</string>
+   </property>
+  </action>
+  <action name="action_Screenshot_Resolution_9">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>9x Native (3600x2160)</string>
+   </property>
+  </action>
+  <action name="action_Screenshot_Resolution_10">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>10x Native (4000x2400)</string>
    </property>
   </action>
   <action name="action_View_Lobby">

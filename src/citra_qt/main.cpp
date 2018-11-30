@@ -249,6 +249,19 @@ void GMainWindow::InitializeWidgets() {
     actionGroup_ScreenLayouts->addAction(ui.action_Screen_Layout_Single_Screen);
     actionGroup_ScreenLayouts->addAction(ui.action_Screen_Layout_Large_Screen);
     actionGroup_ScreenLayouts->addAction(ui.action_Screen_Layout_Side_by_Side);
+
+    actionGroup_screenshot_resolutions = new QActionGroup(this);
+    actionGroup_screenshot_resolutions->addAction(ui.action_Screenshot_Resolution_Auto);
+    actionGroup_screenshot_resolutions->addAction(ui.action_Screenshot_Resolution_1);
+    actionGroup_screenshot_resolutions->addAction(ui.action_Screenshot_Resolution_2);
+    actionGroup_screenshot_resolutions->addAction(ui.action_Screenshot_Resolution_3);
+    actionGroup_screenshot_resolutions->addAction(ui.action_Screenshot_Resolution_4);
+    actionGroup_screenshot_resolutions->addAction(ui.action_Screenshot_Resolution_5);
+    actionGroup_screenshot_resolutions->addAction(ui.action_Screenshot_Resolution_6);
+    actionGroup_screenshot_resolutions->addAction(ui.action_Screenshot_Resolution_7);
+    actionGroup_screenshot_resolutions->addAction(ui.action_Screenshot_Resolution_8);
+    actionGroup_screenshot_resolutions->addAction(ui.action_Screenshot_Resolution_9);
+    actionGroup_screenshot_resolutions->addAction(ui.action_Screenshot_Resolution_10);
 }
 
 void GMainWindow::InitializeDebugWidgets() {
@@ -597,6 +610,9 @@ void GMainWindow::ConnectMenuEvents() {
     });
     connect(ui.action_Capture_Screenshot, &QAction::triggered, this,
             &GMainWindow::OnCaptureScreenshot);
+    for (auto* action : actionGroup_screenshot_resolutions->actions()) {
+        connect(action, &QAction::triggered, this, &GMainWindow::ChangeScreenshotResolution);
+    }
 
     // Help
     connect(ui.action_Open_Citra_Folder, &QAction::triggered, this,
@@ -1563,6 +1579,16 @@ void GMainWindow::OnCaptureScreenshot() {
     OnStartGame();
 }
 
+void GMainWindow::ChangeScreenshotResolution() {
+    for (int i = 0; i < actionGroup_screenshot_resolutions->actions().size(); i++) {
+        if (actionGroup_screenshot_resolutions->actions()[i]->isChecked()) {
+            UISettings::values.screenshot_resolution_factor = i;
+            return;
+        }
+    }
+    LOG_ERROR(Frontend, "No screenshot resolution is checked");
+}
+
 void GMainWindow::UpdateStatusBar() {
     if (emu_thread == nullptr) {
         status_bar_update_timer.stop();
@@ -1813,6 +1839,11 @@ void GMainWindow::SyncMenuUISettings() {
     ui.action_Screen_Layout_Side_by_Side->setChecked(Settings::values.layout_option ==
                                                      Settings::LayoutOption::SideScreen);
     ui.action_Screen_Layout_Swap_Screens->setChecked(Settings::values.swap_screen);
+    // Screenshot Resolutions
+    for (int i = 0; i < actionGroup_screenshot_resolutions->actions().size(); i++) {
+        actionGroup_screenshot_resolutions->actions()[i]->setChecked(
+            UISettings::values.screenshot_resolution_factor == i);
+    }
 }
 
 void GMainWindow::RetranslateStatusBar() {
