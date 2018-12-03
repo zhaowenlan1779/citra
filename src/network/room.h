@@ -25,12 +25,12 @@ static constexpr u32 MaxConcurrentConnections = 254;
 constexpr std::size_t NumChannels = 1; // Number of channels used for the connection
 
 struct RoomInformation {
-    std::string name;           ///< Name of the server
-    std::string description;    ///< Server description
-    u32 member_slots;           ///< Maximum number of members in this room
-    u16 port;                   ///< The port of this room
-    std::string preferred_game; ///< Game to advertise that you want to play
-    u64 preferred_game_id;      ///< Title ID for the advertised game
+    std::string name;                         ///< Name of the server
+    std::string description;                  ///< Server description
+    u32 member_slots;                         ///< Maximum number of members in this room
+    u16 port;                                 ///< The port of this room
+    std::vector<std::string> preferred_games; ///< Games to advertise that you want to play
+    std::vector<u64> preferred_game_ids;       ///< Title IDs for the advertised games
 };
 
 struct GameInfo {

@@ -449,7 +449,7 @@ void Room::RoomImpl::BroadcastRoomInformation() {
     packet << room_information.description;
     packet << room_information.member_slots;
     packet << room_information.port;
-    packet << room_information.preferred_game;
+    packet << room_information.preferred_games;
 
     packet << static_cast<u32>(members.size());
     {

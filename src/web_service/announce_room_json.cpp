@@ -31,8 +31,8 @@ void to_json(nlohmann::json& json, const Room& room) {
     json["port"] = room.port;
     json["name"] = room.name;
     json["description"] = room.description;
-    json["preferredGameName"] = room.preferred_game;
-    json["preferredGameId"] = room.preferred_game_id;
+    json["preferredGameNames"] = room.preferred_games;
+    json["preferredGameIds"] = room.preferred_game_ids;
     json["maxPlayers"] = room.max_player;
     json["netVersion"] = room.net_version;
     json["hasPassword"] = room.has_password;
@@ -54,8 +54,8 @@ void from_json(const nlohmann::json& json, Room& room) {
     }
     room.owner = json.at("owner").get<std::string>();
     room.port = json.at("port").get<u16>();
-    room.preferred_game = json.at("preferredGameName").get<std::string>();
-    room.preferred_game_id = json.at("preferredGameId").get<u64>();
+    room.preferred_games = json.at("preferredGameNames").get<std::vector<std::string>>();
+    room.preferred_game_ids = json.at("preferredGameIds").get<std::vector<u64>>();
     room.max_player = json.at("maxPlayers").get<u32>();
     room.net_version = json.at("netVersion").get<u32>();
     room.has_password = json.at("hasPassword").get<bool>();
@@ -72,16 +72,17 @@ namespace WebService {
 
 void RoomJson::SetRoomInformation(const std::string& name, const std::string& description,
                                   const u16 port, const u32 max_player, const u32 net_version,
-                                  const bool has_password, const std::string& preferred_game,
-                                  const u64 preferred_game_id) {
+                                  const bool has_password,
+                                  const std::vector<std::string>& preferred_games,
+                                  const std::vector<u64>& preferred_game_ids) {
     room.name = name;
     room.description = description;
     room.port = port;
     room.max_player = max_player;
     room.net_version = net_version;
     room.has_password = has_password;
-    room.preferred_game = preferred_game;
-    room.preferred_game_id = preferred_game_id;
+    room.preferred_games = preferred_games;
+    room.preferred_game_ids = preferred_game_ids;
 }
 void RoomJson::AddPlayer(const std::string& username, const std::string& nickname,
                          const std::string& avatar_url,

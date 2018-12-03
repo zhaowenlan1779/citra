@@ -34,8 +34,8 @@ struct Room {
     u32 max_player;
     u32 net_version;
     bool has_password;
-    std::string preferred_game;
-    u64 preferred_game_id;
+    std::vector<std::string> preferred_games;
+    std::vector<u64> preferred_game_ids;
 
     std::vector<Member> members;
 };
@@ -57,13 +57,14 @@ public:
      * @param port The port of the room
      * @param net_version The version of the libNetwork that gets used
      * @param has_password True if the room is passowrd protected
-     * @param preferred_game The preferred game of the room
-     * @param preferred_game_id The title id of the preferred game
+     * @param preferred_games The preferred games of the room
+     * @param preferred_game_ids The title ids of the preferred games
      */
     virtual void SetRoomInformation(const std::string& name, const std::string& description,
                                     const u16 port, const u32 max_player, const u32 net_version,
-                                    const bool has_password, const std::string& preferred_game,
-                                    const u64 preferred_game_id) = 0;
+                                    const bool has_password,
+                                    const std::vector<std::string>& preferred_games,
+                                    const std::vector<u64>& preferred_game_ids) = 0;
     /**
      * Adds a player information to the data that gets announced
      * @param nickname The nickname of the player

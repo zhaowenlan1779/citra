@@ -178,7 +178,7 @@ void Lobby::ResetModel() {
     model->insertColumns(0, Column::TOTAL);
     model->setHeaderData(Column::EXPAND, Qt::Horizontal, "", Qt::DisplayRole);
     model->setHeaderData(Column::ROOM_NAME, Qt::Horizontal, tr("Room Name"), Qt::DisplayRole);
-    model->setHeaderData(Column::GAME_NAME, Qt::Horizontal, tr("Preferred Game"), Qt::DisplayRole);
+    model->setHeaderData(Column::GAME_NAME, Qt::Horizontal, tr("Preferred Games"), Qt::DisplayRole);
     model->setHeaderData(Column::HOST, Qt::Horizontal, tr("Host"), Qt::DisplayRole);
     model->setHeaderData(Column::MEMBER, Qt::Horizontal, tr("Players"), Qt::DisplayRole);
 }
@@ -198,13 +198,17 @@ void Lobby::RefreshLobby() {
 void Lobby::OnRefreshLobby() {
     AnnounceMultiplayerRoom::RoomList new_room_list = room_list_watcher.result();
     for (auto room : new_room_list) {
-        // find the icon for the game if this person owns that game.
-        QPixmap smdh_icon;
-        for (int r = 0; r < game_list->rowCount(); ++r) {
-            auto index = game_list->index(r, 0);
-            auto game_id = game_list->data(index, GameListItemPath::ProgramIdRole).toULongLong();
-            if (game_id != 0 && room.preferred_game_id == game_id) {
-                smdh_icon = game_list->data(index, Qt::DecorationRole).value<QPixmap>();
+        // find the icons for the game if this person owns that game.
+        std::vector<QPixmap> smdh_icons;
+        for (auto preferred_game_id : room.preferred_game_ids) {
+            smdh_icons.emplace_back(); // Put a invalid pixmap
+            for (int r = 0; r < game_list->rowCount(); ++r) {
+                auto index = game_list->index(r, 0);
+                auto game_id =
+                    game_list->data(index, GameListItemPath::ProgramIdRole).toULongLong();
+                if (game_id != 0 && preferred_game_id == game_id) {
+                    smdh_icons.back() = game_list->data(index, Qt::DecorationRole).value<QPixmap>();
+                }
             }
         }
 
@@ -221,8 +225,7 @@ void Lobby::OnRefreshLobby() {
         auto row = QList<QStandardItem*>({
             first_item,
             new LobbyItemName(room.has_password, QString::fromStdString(room.name)),
-            new LobbyItemGame(room.preferred_game_id, QString::fromStdString(room.preferred_game),
-                              smdh_icon),
+            new LobbyItemGame(room.preferred_games, smdh_icons),
             new LobbyItemHost(QString::fromStdString(room.owner), QString::fromStdString(room.ip),
                               room.port, QString::fromStdString(room.verify_UID)),
             new LobbyItemMemberList(members, room.max_player),
@@ -234,6 +237,15 @@ void Lobby::OnRefreshLobby() {
         if (!room.description.empty()) {
             first_item->appendRow(
                 new LobbyItemDescription(QString::fromStdString(room.description)));
+        }
+
+        auto preferred_games_item =
+            new LobbyItem(tr("Preferred Games (%1)").arg(room.preferred_games.size()));
+        first_item->appendRow(preferred_games_item);
+        for (int i = 0; i < room.preferred_games.size(); ++i) {
+            preferred_games_item->appendRow(new LobbyItemPreferredGame(
+                room.preferred_game_ids[i], QString::fromStdString(room.preferred_games[i]),
+                smdh_icons[i]));
         }
         if (!room.members.empty()) {
             first_item->appendRow(new LobbyItemExpandedMemberList(members));

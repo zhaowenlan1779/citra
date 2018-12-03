@@ -5,6 +5,7 @@
 #pragma once
 
 #include <utility>
+#include <QPainter>
 #include <QPixmap>
 #include <QStandardItem>
 #include <QStandardItemModel>
@@ -81,37 +82,50 @@ public:
 };
 
 class LobbyItemGame : public LobbyItem {
+    Q_OBJECT
+
 public:
-    static const int TitleIDRole = Qt::UserRole + 1;
-    static const int GameNameRole = Qt::UserRole + 2;
-    static const int GameIconRole = Qt::UserRole + 3;
-
     LobbyItemGame() = default;
-    explicit LobbyItemGame(u64 title_id, QString game_name, QPixmap smdh_icon) {
-        setData(static_cast<unsigned long long>(title_id), TitleIDRole);
-        setData(game_name, GameNameRole);
-        if (!smdh_icon.isNull()) {
-            setData(smdh_icon, GameIconRole);
-        }
-    }
+    explicit LobbyItemGame(const std::vector<std::string>& game_names,
+                           std::vector<QPixmap> smdh_icons) {
 
-    QVariant data(int role) const override {
-        if (role == Qt::DecorationRole) {
-            auto val = data(GameIconRole);
-            if (val.isValid()) {
-                val = val.value<QPixmap>().scaled(16, 16, Qt::KeepAspectRatio);
-            }
-            return val;
-        } else if (role != Qt::DisplayRole) {
-            return LobbyItem::data(role);
+        int count = 0;
+        for (std::size_t i = 0; i < smdh_icons.size(); ++i) {
+            if (!smdh_icons[i].isNull())
+                count++;
         }
-        return data(GameNameRole).toString();
-    }
+        count = std::min(count, 5); // Limit displayed icons to 5 entries
 
-    bool operator<(const QStandardItem& other) const override {
-        return data(GameNameRole)
-                   .toString()
-                   .localeAwareCompare(other.data(GameNameRole).toString()) < 0;
+        // Combine these pixmaps together to form a new one
+        // Add 8 pixels space between them
+        QPixmap pixmap(24 * count - 8, 16);
+        pixmap.fill(Qt::transparent);
+
+        QPainter painter(&pixmap);
+
+        for (int i = 0, j = 0; i < smdh_icons.size() && j < count; ++i) {
+            if (smdh_icons[i].isNull())
+                continue;
+            painter.drawPixmap(24 * j - 8, 0, smdh_icons[i].scaled(16, 16, Qt::KeepAspectRatio));
+            j++;
+        }
+
+        // Build the text
+        QString text;
+
+        if (count == 0 || game_names.size() == 1) {
+            // Display game name if there is only one entry
+            text = QString::fromStdString(game_names[0]);
+            count = 1;
+        }
+
+        if (count < game_names.size()) {
+            // Show a count of entries not displayed
+            text = tr("and %1 more").arg(game_names.size() - count);
+        }
+
+        setData(pixmap, Qt::DecorationRole);
+        setData(text, Qt::DisplayRole);
     }
 };
 
@@ -235,5 +249,44 @@ public:
             first = false;
         }
         return out;
+    }
+};
+
+/**
+ * An item of the preferred game list of a lobby.
+ */
+class LobbyItemPreferredGame : public LobbyItem {
+public:
+    static const int TitleIDRole = Qt::UserRole + 1;
+    static const int GameNameRole = Qt::UserRole + 2;
+    static const int GameIconRole = Qt::UserRole + 3;
+
+    LobbyItemPreferredGame() = default;
+
+    explicit LobbyItemPreferredGame(u64 title_id, QString game_name, QPixmap smdh_icon) {
+        setData(static_cast<unsigned long long>(title_id), TitleIDRole);
+        setData(game_name, GameNameRole);
+        if (!smdh_icon.isNull()) {
+            setData(smdh_icon, GameIconRole);
+        }
+    }
+
+    QVariant data(int role) const override {
+        if (role == Qt::DecorationRole) {
+            auto val = data(GameIconRole);
+            if (val.isValid()) {
+                val = val.value<QPixmap>().scaled(16, 16, Qt::KeepAspectRatio);
+            }
+            return val;
+        } else if (role != Qt::DisplayRole) {
+            return LobbyItem::data(role);
+        }
+        return data(GameNameRole).toString();
+    }
+
+    bool operator<(const QStandardItem& other) const override {
+        return data(GameNameRole)
+                   .toString()
+                   .localeAwareCompare(other.data(GameNameRole).toString()) < 0;
     }
 };
