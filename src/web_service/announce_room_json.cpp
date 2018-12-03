@@ -12,7 +12,9 @@
 namespace AnnounceMultiplayerRoom {
 
 void to_json(nlohmann::json& json, const Room::Member& member) {
-    json["username"] = member.username;
+    if (!member.username.empty()) {
+        json["username"] = member.username;
+    }
     json["nickname"] = member.nickname;
     json["avatarUrl"] = member.avatar_url;
     json["gameName"] = member.game_name;
@@ -30,7 +32,9 @@ void from_json(const nlohmann::json& json, Room::Member& member) {
 void to_json(nlohmann::json& json, const Room& room) {
     json["port"] = room.port;
     json["name"] = room.name;
-    json["description"] = room.description;
+    if (!room.description.empty()) {
+        json["description"] = room.description;
+    }
     json["preferredGameName"] = room.preferred_game;
     json["preferredGameId"] = room.preferred_game_id;
     json["maxPlayers"] = room.max_player;
