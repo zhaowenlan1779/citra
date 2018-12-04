@@ -54,14 +54,14 @@ enum RoomMessageTypes : u8 {
     IdSetGameInfo,
     IdWifiPacket,
     IdChatMessage,
-    IdStatusMessage,
     IdNameCollision,
     IdMacCollision,
-    IdConsoleIdCollision,
     IdVersionMismatch,
     IdWrongPassword,
     IdCloseRoom,
     IdRoomIsFull,
+    IdStatusMessage,
+    IdConsoleIdCollision,
 };
 
 /// Types of system status messages
