@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "common/announce_multiplayer_room.h"
 #include "common/common_types.h"
 #include "network/verify_user.h"
 
@@ -25,12 +26,9 @@ static constexpr u32 MaxConcurrentConnections = 254;
 constexpr std::size_t NumChannels = 1; // Number of channels used for the connection
 
 struct RoomInformation {
-    std::string name;           ///< Name of the server
-    std::string description;    ///< Server description
-    u32 member_slots;           ///< Maximum number of members in this room
-    u16 port;                   ///< The port of this room
-    std::string preferred_game; ///< Game to advertise that you want to play
-    u64 preferred_game_id;      ///< Title ID for the advertised game
+    std::string id;   ///< The unique identifier of this room
+    u32 member_slots; ///< Maximum number of members in this room
+    u16 port;         ///< The port of this room
 };
 
 struct GameInfo {
@@ -82,7 +80,6 @@ public:
         std::string nickname;     ///< The nickname of the member.
         std::string username;     ///< The web services username of the member. Can be empty.
         std::string display_name; ///< The web services display name of the member. Can be empty.
-        std::string avatar_url;   ///< Url to the member's avatar. Can be empty.
         GameInfo game_info;       ///< The current game of the member
         MacAddress mac_address;   ///< The assigned mac address of the member.
     };
@@ -98,12 +95,7 @@ public:
     /**
      * Gets the room information of the room.
      */
-    const RoomInformation& GetRoomInformation() const;
-
-    /**
-     * Gets the verify UID of this room.
-     */
-    std::string GetVerifyUID() const;
+    RoomInformation GetRoomInformation() const;
 
     /**
      * Gets a list of the mbmers connected to the room.
@@ -119,17 +111,18 @@ public:
      * Creates the socket for this room. Will bind to default address if
      * server is empty string.
      */
-    bool Create(const std::string& name, const std::string& description = "",
-                const std::string& server = "", u16 server_port = DefaultRoomPort,
-                const std::string& password = "",
-                const u32 max_connections = MaxConcurrentConnections,
-                const std::string& preferred_game = "", u64 preferred_game_id = 0,
+    bool Create(const std::string& server = "", u16 server_port = DefaultRoomPort,
                 std::unique_ptr<VerifyUser::Backend> verify_backend = nullptr);
 
     /**
-     * Sets the verification GUID of the room.
+     * Sets the information of the room.
      */
-    void SetVerifyUID(const std::string& uid);
+    void SetRoomInformation(const AnnounceMultiplayerRoom::Room& room);
+
+    /**
+     * Sets the password of the room
+     */
+    void SetPassword(const std::string& password);
 
     /**
      * Destroys the socket

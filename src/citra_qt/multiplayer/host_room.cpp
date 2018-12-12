@@ -128,10 +128,10 @@ void HostRoomWindow::Host() {
         auto password = ui->password->text().toStdString();
         const bool is_public = ui->host_type->currentIndex() == 0;
         if (auto room = Network::GetRoom().lock()) {
-            bool created = room->Create(ui->room_name->text().toStdString(),
-                                        ui->room_description->toPlainText().toStdString(), "", port,
-                                        password, ui->max_player->value(), game_name.toStdString(),
-                                        game_id, CreateVerifyBackend(is_public));
+            bool created = true; // room->Create(ui->room_name->text().toStdString(),
+                                 //     ui->room_description->toPlainText().toStdString(), "", port,
+                                 //   password, ui->max_player->value(), game_name.toStdString(),
+                                 // game_id, CreateVerifyBackend(is_public));
             if (!created) {
                 NetworkMessage::ShowError(NetworkMessage::COULD_NOT_CREATE_ROOM);
                 LOG_ERROR(Network, "Could not create room!");
@@ -153,7 +153,7 @@ void HostRoomWindow::Host() {
             WebService::Client client(Settings::values.web_api_url, Settings::values.citra_username,
                                       Settings::values.citra_token);
             if (auto room = Network::GetRoom().lock()) {
-                token = client.GetExternalJWT(room->GetVerifyUID()).returned_data;
+                token = client.GetExternalJWT(room->GetRoomInformation().id).returned_data;
             }
             if (token.empty()) {
                 LOG_ERROR(WebService, "Could not get external JWT, verification may fail");

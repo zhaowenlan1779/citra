@@ -29,6 +29,16 @@ public:
                                bool allow_anonymous);
 
     /**
+     * Puts JSON to the specified path.
+     * @param path the URL segment after the host address.
+     * @param data String of JSON data to use for the body of the POST request.
+     * @param allow_anonymous If true, allow anonymous unauthenticated requests.
+     * @return the result of the request.
+     */
+    Common::WebResult PutJson(const std::string& path, const std::string& data,
+                              bool allow_anonymous);
+
+    /**
      * Gets JSON from the specified path.
      * @param path the URL segment after the host address.
      * @param allow_anonymous If true, allow anonymous unauthenticated requests.

@@ -246,16 +246,10 @@ void RoomMember::RoomMemberImpl::HandleRoomInformationPacket(const ENetEvent* ev
     packet.IgnoreBytes(sizeof(u8)); // Ignore the message type
 
     RoomInformation info{};
-    packet >> info.name;
-    packet >> info.description;
     packet >> info.member_slots;
     packet >> info.port;
-    packet >> info.preferred_game;
-    room_information.name = info.name;
-    room_information.description = info.description;
     room_information.member_slots = info.member_slots;
     room_information.port = info.port;
-    room_information.preferred_game = info.preferred_game;
 
     u32 num_members;
     packet >> num_members;
@@ -268,7 +262,6 @@ void RoomMember::RoomMemberImpl::HandleRoomInformationPacket(const ENetEvent* ev
         packet >> member.game_info.id;
         packet >> member.username;
         packet >> member.display_name;
-        packet >> member.avatar_url;
 
         {
             std::lock_guard<std::mutex> lock(username_mutex);
@@ -347,7 +340,6 @@ void RoomMember::RoomMemberImpl::HandleStatusMessagePacket(const ENetEvent* even
 void RoomMember::RoomMemberImpl::Disconnect() {
     member_information.clear();
     room_information.member_slots = 0;
-    room_information.name.clear();
 
     if (!server)
         return;

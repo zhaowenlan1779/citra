@@ -60,6 +60,12 @@ public:
      */
     AnnounceMultiplayerRoom::RoomList GetRoomList();
 
+    /**
+     *  Returns a list of all lobby information the backend got
+     * @return a list of lobbies received from the web service
+     */
+    AnnounceMultiplayerRoom::LobbyList GetLobbyList();
+
 private:
     Common::Event shutdown_event;
     std::mutex callback_mutex;
@@ -71,7 +77,6 @@ private:
 
     /// Registers a room to web services
     void Register();
-    void UpdateBackendData(std::shared_ptr<Network::Room> room);
     void AnnounceMultiplayerLoop();
 };
 

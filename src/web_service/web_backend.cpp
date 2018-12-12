@@ -186,6 +186,11 @@ Common::WebResult Client::PostJson(const std::string& path, const std::string& d
     return impl->GenericRequest("POST", path, data, allow_anonymous, "application/json");
 }
 
+Common::WebResult Client::PutJson(const std::string& path, const std::string& data,
+                                  bool allow_anonymous) {
+    return impl->GenericRequest("PUT", path, data, allow_anonymous, "application/json");
+}
+
 Common::WebResult Client::GetJson(const std::string& path, bool allow_anonymous) {
     return impl->GenericRequest("GET", path, "", allow_anonymous, "application/json");
 }

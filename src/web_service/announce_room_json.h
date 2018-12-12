@@ -20,19 +20,20 @@ public:
     RoomJson(const std::string& host, const std::string& username, const std::string& token)
         : client(host, username, token), host(host), username(username), token(token) {}
     ~RoomJson() = default;
-    void SetRoomInformation(const std::string& name, const std::string& description, const u16 port,
-                            const u32 max_player, const u32 net_version, const bool has_password,
-                            const std::string& preferred_game,
-                            const u64 preferred_game_id) override;
+    void SetRoomInformation(const u16 port, const u32 net_version) override;
     void AddPlayer(const std::string& username, const std::string& nickname,
-                   const std::string& avatar_url,
                    const AnnounceMultiplayerRoom::MacAddress& mac_address, const u64 game_id,
                    const std::string& game_name) override;
     Common::WebResult Update() override;
-    std::string Register() override;
+    void Register() override;
     void ClearPlayers() override;
+    AnnounceMultiplayerRoom::LobbyList GetLobbyList() override;
     AnnounceMultiplayerRoom::RoomList GetRoomList() override;
     void Delete() override;
+    AnnounceMultiplayerRoom::Room GetRoomInformation() const override;
+    std::string GetPassword() const override;
+    std::optional<AnnounceMultiplayerRoom::Room> ClaimRoom(const std::string& lobby_id,
+                                                           const std::string& password) override;
 
 private:
     AnnounceMultiplayerRoom::Room room;
@@ -40,7 +41,7 @@ private:
     std::string host;
     std::string username;
     std::string token;
-    std::string room_id;
+    std::string password;
 };
 
 } // namespace WebService

@@ -26,13 +26,12 @@ public:
 
     ENetHost* server = nullptr; ///< Network interface.
 
-    std::atomic<State> state{State::Closed}; ///< Current state of the room.
-    RoomInformation room_information;        ///< Information about this room.
+    std::atomic<State> state{State::Closed};   ///< Current state of the room.
+    RoomInformation room_information;          ///< Information about this room.
+    mutable std::mutex room_information_mutex; ///< Mutex for locking room information
 
-    std::string verify_UID;              ///< A GUID which may be used for verfication.
-    mutable std::mutex verify_UID_mutex; ///< Mutex for verify_UID
-
-    std::string password; ///< The password required to connect to this room.
+    std::string password;              ///< The password required to connect to this room.
+    mutable std::mutex password_mutex; ///< Mutex for locking password
 
     struct Member {
         std::string nickname;        ///< The nickname of the member.
@@ -225,6 +224,8 @@ void Room::RoomImpl::StartLoop() {
 void Room::RoomImpl::HandleJoinRequest(const ENetEvent* event) {
     {
         std::lock_guard<std::mutex> lock(member_mutex);
+        std::lock_guard<std::mutex> lock2(room_information_mutex);
+
         if (members.size() >= room_information.member_slots) {
             SendRoomIsFull(event->peer);
             return;
@@ -251,9 +252,12 @@ void Room::RoomImpl::HandleJoinRequest(const ENetEvent* event) {
     std::string token;
     packet >> token;
 
-    if (pass != password) {
-        SendWrongPassword(event->peer);
-        return;
+    {
+        std::lock_guard<std::mutex> lock(password_mutex);
+        if (pass != password) {
+            SendWrongPassword(event->peer);
+            return;
+        }
     }
 
     if (!IsValidNickname(nickname)) {
@@ -289,12 +293,10 @@ void Room::RoomImpl::HandleJoinRequest(const ENetEvent* event) {
     member.nickname = nickname;
     member.peer = event->peer;
 
-    std::string uid;
     {
-        std::lock_guard<std::mutex> lock(verify_UID_mutex);
-        uid = verify_UID;
+        std::lock_guard<std::mutex> lock(room_information_mutex);
+        member.user_data = verify_backend->LoadUserData(room_information.id, token);
     }
-    member.user_data = verify_backend->LoadUserData(uid, token);
 
     // Notify everyone that the user has joined.
     SendStatusMessage(IdMemberJoin, member.nickname, member.user_data.username);
@@ -445,11 +447,12 @@ void Room::RoomImpl::SendStatusMessage(StatusMessageTypes type, const std::strin
 void Room::RoomImpl::BroadcastRoomInformation() {
     Packet packet;
     packet << static_cast<u8>(IdRoomInformation);
-    packet << room_information.name;
-    packet << room_information.description;
-    packet << room_information.member_slots;
-    packet << room_information.port;
-    packet << room_information.preferred_game;
+
+    {
+        std::lock_guard<std::mutex> lock(room_information_mutex);
+        packet << room_information.member_slots;
+        packet << room_information.port;
+    }
 
     packet << static_cast<u32>(members.size());
     {
@@ -461,7 +464,6 @@ void Room::RoomImpl::BroadcastRoomInformation() {
             packet << member.game_info.id;
             packet << member.user_data.username;
             packet << member.user_data.display_name;
-            packet << member.user_data.avatar_url;
         }
     }
 
@@ -623,10 +625,8 @@ Room::Room() : room_impl{std::make_unique<RoomImpl>()} {}
 
 Room::~Room() = default;
 
-bool Room::Create(const std::string& name, const std::string& description,
-                  const std::string& server_address, u16 server_port, const std::string& password,
-                  const u32 max_connections, const std::string& preferred_game,
-                  u64 preferred_game_id, std::unique_ptr<VerifyUser::Backend> verify_backend) {
+bool Room::Create(const std::string& server_address, u16 server_port,
+                  std::unique_ptr<VerifyUser::Backend> verify_backend) {
     ENetAddress address;
     address.host = ENET_HOST_ANY;
     if (!server_address.empty()) {
@@ -634,21 +634,15 @@ bool Room::Create(const std::string& name, const std::string& description,
     }
     address.port = server_port;
 
-    // In order to send the room is full message to the connecting client, we need to leave one
-    // slot open so enet won't reject the incoming connection without telling us
-    room_impl->server = enet_host_create(&address, max_connections + 1, NumChannels, 0, 0);
+    // The lobby API would decide how big this room would be, so make it as large as possible
+    // so that we would not need to recreate the host once maximum connection gets changed
+    room_impl->server = enet_host_create(&address, MaxConcurrentConnections + 1, NumChannels, 0, 0);
     if (!room_impl->server) {
         return false;
     }
     room_impl->state = State::Open;
 
-    room_impl->room_information.name = name;
-    room_impl->room_information.description = description;
-    room_impl->room_information.member_slots = max_connections;
     room_impl->room_information.port = server_port;
-    room_impl->room_information.preferred_game = preferred_game;
-    room_impl->room_information.preferred_game_id = preferred_game_id;
-    room_impl->password = password;
     room_impl->verify_backend = std::move(verify_backend);
 
     room_impl->StartLoop();
@@ -659,13 +653,9 @@ Room::State Room::GetState() const {
     return room_impl->state;
 }
 
-const RoomInformation& Room::GetRoomInformation() const {
+RoomInformation Room::GetRoomInformation() const {
+    std::lock_guard<std::mutex> lock(room_impl->room_information_mutex);
     return room_impl->room_information;
-}
-
-std::string Room::GetVerifyUID() const {
-    std::lock_guard<std::mutex> lock(room_impl->verify_UID_mutex);
-    return room_impl->verify_UID;
 }
 
 std::vector<Room::Member> Room::GetRoomMemberList() const {
@@ -676,7 +666,6 @@ std::vector<Room::Member> Room::GetRoomMemberList() const {
         member.nickname = member_impl.nickname;
         member.username = member_impl.user_data.username;
         member.display_name = member_impl.user_data.display_name;
-        member.avatar_url = member_impl.user_data.avatar_url;
         member.mac_address = member_impl.mac_address;
         member.game_info = member_impl.game_info;
         member_list.push_back(member);
@@ -685,12 +674,19 @@ std::vector<Room::Member> Room::GetRoomMemberList() const {
 }
 
 bool Room::HasPassword() const {
+    std::lock_guard<std::mutex> lock(room_impl->password_mutex);
     return !room_impl->password.empty();
 }
 
-void Room::SetVerifyUID(const std::string& uid) {
-    std::lock_guard<std::mutex> lock(room_impl->verify_UID_mutex);
-    room_impl->verify_UID = uid;
+void Room::SetRoomInformation(const AnnounceMultiplayerRoom::Room& room) {
+    std::lock_guard<std::mutex> lock(room_impl->room_information_mutex);
+    room_impl->room_information.id = room.id;
+    room_impl->room_information.member_slots = room.max_player;
+}
+
+void Room::SetPassword(const std::string& password) {
+    std::lock_guard<std::mutex> lock(room_impl->password_mutex);
+    room_impl->password = password;
 }
 
 void Room::Destroy() {
@@ -701,14 +697,16 @@ void Room::Destroy() {
     if (room_impl->server) {
         enet_host_destroy(room_impl->server);
     }
-    room_impl->room_information = {};
+    {
+        std::lock_guard<std::mutex> lock(room_impl->room_information_mutex);
+        room_impl->room_information = {};
+    }
     room_impl->server = nullptr;
     {
         std::lock_guard<std::mutex> lock(room_impl->member_mutex);
         room_impl->members.clear();
     }
     room_impl->room_information.member_slots = 0;
-    room_impl->room_information.name.clear();
 }
 
 } // namespace Network

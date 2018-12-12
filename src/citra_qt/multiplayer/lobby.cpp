@@ -31,7 +31,8 @@ Lobby::Lobby(QWidget* parent, QStandardItemModel* list,
     // setup the watcher for background connections
     watcher = new QFutureWatcher<void>;
 
-    model = new QStandardItemModel(ui->room_list);
+    lobby_list_model = new QStandardItemModel(ui->lobby_list);
+    room_list_model = new QStandardItemModel(ui->room_list);
 
     // Create a proxy to the game list to get the list of games owned
     game_list = new QStandardItemModel;
@@ -43,12 +44,25 @@ Lobby::Lobby(QWidget* parent, QStandardItemModel* list,
         }
     }
 
-    proxy = new LobbyFilterProxyModel(this, game_list);
-    proxy->setSourceModel(model);
-    proxy->setDynamicSortFilter(true);
-    proxy->setFilterCaseSensitivity(Qt::CaseInsensitive);
-    proxy->setSortLocaleAware(true);
-    ui->room_list->setModel(proxy);
+    lobby_list_proxy = new LobbyListFilterProxyModel(this, game_list);
+    lobby_list_proxy->setSourceModel(lobby_list_model);
+    lobby_list_proxy->setDynamicSortFilter(true);
+    lobby_list_proxy->setSortLocaleAware(true);
+    ui->lobby_list->setModel(lobby_list_proxy);
+    ui->lobby_list->header()->setSectionResizeMode(QHeaderView::Interactive);
+    ui->lobby_list->header()->stretchLastSection();
+    ui->lobby_list->setSelectionMode(QHeaderView::SingleSelection);
+    ui->lobby_list->setSelectionBehavior(QHeaderView::SelectRows);
+    ui->lobby_list->setSortingEnabled(true);
+    ui->lobby_list->setEditTriggers(QHeaderView::NoEditTriggers);
+    ui->lobby_list->setEditTriggers(QHeaderView::NoEditTriggers);
+
+    room_list_proxy = new RoomListFilterProxyModel(this, game_list);
+    room_list_proxy->setSourceModel(room_list_model);
+    room_list_proxy->setDynamicSortFilter(true);
+    room_list_proxy->setFilterCaseSensitivity(Qt::CaseInsensitive);
+    room_list_proxy->setSortLocaleAware(true);
+    ui->room_list->setModel(room_list_proxy);
     ui->room_list->header()->setSectionResizeMode(QHeaderView::Interactive);
     ui->room_list->header()->stretchLastSection();
     ui->room_list->setAlternatingRowColors(true);
@@ -70,16 +84,25 @@ Lobby::Lobby(QWidget* parent, QStandardItemModel* list,
 
     // UI Buttons
     connect(ui->refresh_list, &QPushButton::pressed, this, &Lobby::RefreshLobby);
-    connect(ui->games_owned, &QCheckBox::stateChanged, proxy,
-            &LobbyFilterProxyModel::SetFilterOwned);
-    connect(ui->hide_full, &QCheckBox::stateChanged, proxy, &LobbyFilterProxyModel::SetFilterFull);
-    connect(ui->search, &QLineEdit::textChanged, proxy, &LobbyFilterProxyModel::SetFilterSearch);
+    connect(ui->hide_full, &QCheckBox::stateChanged, room_list_proxy,
+            &RoomListFilterProxyModel::SetFilterFull);
+    connect(ui->search, &QLineEdit::textChanged, room_list_proxy,
+            &RoomListFilterProxyModel::SetFilterSearch);
+    connect(ui->lobby_list, &QTreeView::clicked, this, &Lobby::PopulateRoomList);
     connect(ui->room_list, &QTreeView::doubleClicked, this, &Lobby::OnJoinRoom);
     connect(ui->room_list, &QTreeView::clicked, this, &Lobby::OnExpandRoom);
 
     // Actions
+    connect(&lobby_list_watcher, &QFutureWatcher<AnnounceMultiplayerRoom::LobbyList>::finished,
+            this, [this] {
+                if (room_list_watcher.isFinished())
+                    OnRefreshLobby();
+            });
     connect(&room_list_watcher, &QFutureWatcher<AnnounceMultiplayerRoom::RoomList>::finished, this,
-            &Lobby::OnRefreshLobby);
+            [this] {
+                if (lobby_list_watcher.isFinished())
+                    OnRefreshLobby();
+            });
 
     // manually start a refresh when the window is opening
     // TODO(jroweboy): if this refresh is slow for people with bad internet, then don't do it as
@@ -100,8 +123,9 @@ QString Lobby::PasswordPrompt() {
 }
 
 void Lobby::OnExpandRoom(const QModelIndex& index) {
-    QModelIndex member_index = proxy->index(index.row(), Column::MEMBER);
-    auto member_list = proxy->data(member_index, LobbyItemMemberList::MemberListRole).toList();
+    QModelIndex member_index = room_list_proxy->index(index.row(), Column::MEMBER);
+    auto member_list =
+        room_list_proxy->data(member_index, RoomListItemMemberList::MemberListRole).toList();
 }
 
 void Lobby::OnJoinRoom(const QModelIndex& source) {
@@ -127,29 +151,31 @@ void Lobby::OnJoinRoom(const QModelIndex& source) {
     }
 
     // Get a password to pass if the room is password protected
-    QModelIndex password_index = proxy->index(index.row(), Column::ROOM_NAME);
-    bool has_password = proxy->data(password_index, LobbyItemName::PasswordRole).toBool();
+    QModelIndex password_index = room_list_proxy->index(index.row(), Column::ROOM_NAME);
+    bool has_password =
+        room_list_proxy->data(password_index, RoomListItemName::PasswordRole).toBool();
     const std::string password = has_password ? PasswordPrompt().toStdString() : "";
     if (has_password && password.empty()) {
         return;
     }
 
-    QModelIndex connection_index = proxy->index(index.row(), Column::HOST);
+    QModelIndex connection_index = room_list_proxy->index(index.row(), Column::OWNER);
     const std::string nickname = ui->nickname->text().toStdString();
     const std::string ip =
-        proxy->data(connection_index, LobbyItemHost::HostIPRole).toString().toStdString();
-    int port = proxy->data(connection_index, LobbyItemHost::HostPortRole).toInt();
-    const std::string verify_UID =
-        proxy->data(connection_index, LobbyItemHost::HostVerifyUIDRole).toString().toStdString();
+        room_list_proxy->data(connection_index, RoomListItemOwner::IPRole).toString().toStdString();
+    int port = room_list_proxy->data(connection_index, RoomListItemOwner::PortRole).toInt();
+    const std::string id = room_list_proxy->data(connection_index, RoomListItemOwner::RoomIdRole)
+                               .toString()
+                               .toStdString();
 
     // attempt to connect in a different thread
-    QFuture<void> f = QtConcurrent::run([nickname, ip, port, password, verify_UID] {
+    QFuture<void> f = QtConcurrent::run([nickname, ip, port, password, id] {
         std::string token;
 #ifdef ENABLE_WEB_SERVICE
         if (!Settings::values.citra_username.empty() && !Settings::values.citra_token.empty()) {
             WebService::Client client(Settings::values.web_api_url, Settings::values.citra_username,
                                       Settings::values.citra_token);
-            token = client.GetExternalJWT(verify_UID).returned_data;
+            token = client.GetExternalJWT(id).returned_data;
             if (token.empty()) {
                 LOG_ERROR(WebService, "Could not get external JWT, verification may fail");
             } else {
@@ -168,26 +194,37 @@ void Lobby::OnJoinRoom(const QModelIndex& source) {
 
     // Save settings
     UISettings::values.nickname = ui->nickname->text();
-    UISettings::values.ip = proxy->data(connection_index, LobbyItemHost::HostIPRole).toString();
-    UISettings::values.port = proxy->data(connection_index, LobbyItemHost::HostPortRole).toString();
+    UISettings::values.ip =
+        room_list_proxy->data(connection_index, RoomListItemOwner::IPRole).toString();
+    UISettings::values.port =
+        room_list_proxy->data(connection_index, RoomListItemOwner::PortRole).toString();
     Settings::Apply();
 }
 
-void Lobby::ResetModel() {
-    model->clear();
-    model->insertColumns(0, Column::TOTAL);
-    model->setHeaderData(Column::EXPAND, Qt::Horizontal, "", Qt::DisplayRole);
-    model->setHeaderData(Column::ROOM_NAME, Qt::Horizontal, tr("Room Name"), Qt::DisplayRole);
-    model->setHeaderData(Column::GAME_NAME, Qt::Horizontal, tr("Preferred Game"), Qt::DisplayRole);
-    model->setHeaderData(Column::HOST, Qt::Horizontal, tr("Host"), Qt::DisplayRole);
-    model->setHeaderData(Column::MEMBER, Qt::Horizontal, tr("Players"), Qt::DisplayRole);
+void Lobby::ResetLobbyListModel() {
+    lobby_list_model->clear();
+    lobby_list_model->insertColumns(0, 1);
+    lobby_list_model->setHeaderData(0, Qt::Horizontal, tr("Lobbies"), Qt::DisplayRole);
+}
+
+void Lobby::ResetRoomListModel() {
+    room_list_model->clear();
+    room_list_model->insertColumns(0, Column::TOTAL);
+    room_list_model->setHeaderData(Column::EXPAND, Qt::Horizontal, "", Qt::DisplayRole);
+    room_list_model->setHeaderData(Column::ROOM_NAME, Qt::Horizontal, tr("Room"), Qt::DisplayRole);
+    room_list_model->setHeaderData(Column::OWNER, Qt::Horizontal, tr("Owner"), Qt::DisplayRole);
+    room_list_model->setHeaderData(Column::RENTER, Qt::Horizontal, tr("Renter"), Qt::DisplayRole);
+    room_list_model->setHeaderData(Column::MEMBER, Qt::Horizontal, tr("Players"), Qt::DisplayRole);
 }
 
 void Lobby::RefreshLobby() {
     if (auto session = announce_multiplayer_session.lock()) {
-        ResetModel();
+        ResetRoomListModel();
+        ResetLobbyListModel();
         ui->refresh_list->setEnabled(false);
         ui->refresh_list->setText(tr("Refreshing"));
+        lobby_list_watcher.setFuture(
+            QtConcurrent::run([session]() { return session->GetLobbyList(); }));
         room_list_watcher.setFuture(
             QtConcurrent::run([session]() { return session->GetRoomList(); }));
     } else {
@@ -195,19 +232,18 @@ void Lobby::RefreshLobby() {
     }
 }
 
-void Lobby::OnRefreshLobby() {
-    AnnounceMultiplayerRoom::RoomList new_room_list = room_list_watcher.result();
-    for (auto room : new_room_list) {
-        // find the icon for the game if this person owns that game.
-        QPixmap smdh_icon;
-        for (int r = 0; r < game_list->rowCount(); ++r) {
-            auto index = game_list->index(r, 0);
-            auto game_id = game_list->data(index, GameListItemPath::ProgramIdRole).toULongLong();
-            if (game_id != 0 && room.preferred_game_id == game_id) {
-                smdh_icon = game_list->data(index, Qt::DecorationRole).value<QPixmap>();
-            }
-        }
+void Lobby::PopulateRoomList(const QModelIndex& index) {
+    if (index == previous_index)
+        return;
+    previous_index = index;
 
+    ResetRoomListModel();
+    auto lobby_id = lobby_list_model->itemFromIndex(index)
+                        ->data(LobbyListItem::LobbyIdRole)
+                        .toString()
+                        .toStdString();
+
+    for (auto room : lobbies[lobby_id]) {
         QList<QVariant> members;
         for (auto member : room.members) {
             QVariant var;
@@ -217,26 +253,22 @@ void Lobby::OnRefreshLobby() {
             members.append(var);
         }
 
-        auto first_item = new LobbyItem();
+        auto first_item = new RoomListItem();
         auto row = QList<QStandardItem*>({
             first_item,
-            new LobbyItemName(room.has_password, QString::fromStdString(room.name)),
-            new LobbyItemGame(room.preferred_game_id, QString::fromStdString(room.preferred_game),
-                              smdh_icon),
-            new LobbyItemHost(QString::fromStdString(room.owner), QString::fromStdString(room.ip),
-                              room.port, QString::fromStdString(room.verify_UID)),
-            new LobbyItemMemberList(members, room.max_player),
+            new RoomListItemName(room.has_password, QString::fromStdString(room.name)),
+            new RoomListItemOwner(QString::fromStdString(room.owner.username),
+                                  QString::fromStdString(room.ip), room.port,
+                                  QString::fromStdString(room.id)),
+            new RoomListItemRenter(QString::fromStdString(room.renter.username)),
+            new RoomListItemMemberList(members, room.max_player),
         });
-        model->appendRow(row);
+        room_list_model->appendRow(row);
         // To make the rows expandable, add the member data as a child of the first column of the
-        // rows with people in them and have qt set them to colspan after the model is finished
-        // resetting
-        if (!room.description.empty()) {
-            first_item->appendRow(
-                new LobbyItemDescription(QString::fromStdString(room.description)));
-        }
+        // rows with people in them and have qt set them to colspan after the room_list_model is
+        // finished resetting
         if (!room.members.empty()) {
-            first_item->appendRow(new LobbyItemExpandedMemberList(members));
+            first_item->appendRow(new RoomListItemExpandedMemberList(members));
         }
     }
 
@@ -249,76 +281,65 @@ void Lobby::OnRefreshLobby() {
     }
 
     // Set the member list child items to span all columns
-    for (int i = 0; i < proxy->rowCount(); i++) {
-        auto parent = model->item(i, 0);
+    for (int i = 0; i < room_list_proxy->rowCount(); i++) {
+        auto parent = room_list_model->item(i, 0);
         for (int j = 0; j < parent->rowCount(); j++) {
-            ui->room_list->setFirstColumnSpanned(j, proxy->index(i, 0), true);
+            ui->room_list->setFirstColumnSpanned(j, room_list_proxy->index(i, 0), true);
         }
     }
 }
 
-LobbyFilterProxyModel::LobbyFilterProxyModel(QWidget* parent, QStandardItemModel* list)
+void Lobby::OnRefreshLobby() {
+    lobby_list = lobby_list_watcher.result();
+    room_list = room_list_watcher.result();
+
+    lobbies.clear();
+    for (auto room : room_list) {
+        lobbies[room.lobby_id].push_back(std::move(room));
+    }
+
+    QString previous_lobby;
+    if (previous_index.isValid())
+        previous_lobby = lobby_list_model->itemFromIndex(previous_index)
+                             ->data(LobbyListItem::LobbyIdRole)
+                             .toString();
+
+    for (auto lobby : lobby_list) {
+        QStringList game_ids;
+        for (const auto& game_id : lobby.game_ids) {
+            game_ids << QString::fromStdString(game_id);
+        }
+        lobby_list_model->appendRow(new LobbyListItem(QString::fromStdString(lobby.id),
+                                                      QString::fromStdString(lobby.name),
+                                                      lobby.player_count, game_ids));
+    }
+}
+
+LobbyListFilterProxyModel::LobbyListFilterProxyModel(QWidget* parent, QStandardItemModel* list)
     : QSortFilterProxyModel(parent), game_list(list) {}
 
-bool LobbyFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const {
-    // Prioritize filters by fastest to compute
-
-    // pass over any child rows (aka row that shows the players in the room)
-    if (sourceParent != QModelIndex()) {
-        return true;
-    }
-
-    // filter by filled rooms
-    if (filter_full) {
-        QModelIndex member_list = sourceModel()->index(sourceRow, Column::MEMBER, sourceParent);
-        int player_count =
-            sourceModel()->data(member_list, LobbyItemMemberList::MemberListRole).toList().size();
-        int max_players =
-            sourceModel()->data(member_list, LobbyItemMemberList::MaxPlayerRole).toInt();
-        if (player_count >= max_players) {
-            return false;
-        }
-    }
-
-    // filter by search parameters
-    if (!filter_search.isEmpty()) {
-        QModelIndex game_name = sourceModel()->index(sourceRow, Column::GAME_NAME, sourceParent);
-        QModelIndex room_name = sourceModel()->index(sourceRow, Column::ROOM_NAME, sourceParent);
-        QModelIndex host_name = sourceModel()->index(sourceRow, Column::HOST, sourceParent);
-        bool preferred_game_match = sourceModel()
-                                        ->data(game_name, LobbyItemGame::GameNameRole)
-                                        .toString()
-                                        .contains(filter_search, filterCaseSensitivity());
-        bool room_name_match = sourceModel()
-                                   ->data(room_name, LobbyItemName::NameRole)
-                                   .toString()
-                                   .contains(filter_search, filterCaseSensitivity());
-        bool username_match = sourceModel()
-                                  ->data(host_name, LobbyItemHost::HostUsernameRole)
-                                  .toString()
-                                  .contains(filter_search, filterCaseSensitivity());
-        if (!preferred_game_match && !room_name_match && !username_match) {
-            return false;
-        }
-    }
-
+bool LobbyListFilterProxyModel::filterAcceptsRow(int sourceRow,
+                                                 const QModelIndex& sourceParent) const {
     // filter by game owned
     if (filter_owned) {
-        QModelIndex game_name = sourceModel()->index(sourceRow, Column::GAME_NAME, sourceParent);
+        QModelIndex index = sourceModel()->index(sourceRow, 0, sourceParent);
         QList<QModelIndex> owned_games;
         for (int r = 0; r < game_list->rowCount(); ++r) {
             owned_games.append(QModelIndex(game_list->index(r, 0)));
         }
-        auto current_id = sourceModel()->data(game_name, LobbyItemGame::TitleIDRole).toLongLong();
-        if (current_id == 0) {
-            // TODO(jroweboy): homebrew often doesn't have a game id and this hides them
+        auto game_ids =
+            sourceModel()->data(index, LobbyListItem::LobbyGameIdListRole).toStringList();
+        if (game_ids.isEmpty()) {
             return false;
         }
         bool owned = false;
         for (const auto& game : owned_games) {
             auto game_id = game_list->data(game, GameListItemPath::ProgramIdRole).toLongLong();
-            if (current_id == game_id) {
+            if (std::find(game_ids.begin(), game_ids.end(), QString::number(game_id, 16)) !=
+                game_ids.end()) {
+
                 owned = true;
+                break;
             }
         }
         if (!owned) {
@@ -329,21 +350,71 @@ bool LobbyFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex& s
     return true;
 }
 
-void LobbyFilterProxyModel::sort(int column, Qt::SortOrder order) {
-    sourceModel()->sort(column, order);
-}
-
-void LobbyFilterProxyModel::SetFilterOwned(bool filter) {
+void LobbyListFilterProxyModel::SetFilterOwned(bool filter) {
     filter_owned = filter;
     invalidate();
 }
 
-void LobbyFilterProxyModel::SetFilterFull(bool filter) {
+void LobbyListFilterProxyModel::sort(int column, Qt::SortOrder order) {
+    sourceModel()->sort(column, order);
+}
+
+RoomListFilterProxyModel::RoomListFilterProxyModel(QWidget* parent, QStandardItemModel* list)
+    : QSortFilterProxyModel(parent), game_list(list) {}
+
+bool RoomListFilterProxyModel::filterAcceptsRow(int sourceRow,
+                                                const QModelIndex& sourceParent) const {
+    // Prioritize filters by fastest to compute
+
+    // pass over any child rows (aka row that shows the players in the room)
+    if (sourceParent != QModelIndex()) {
+        return true;
+    }
+
+    // filter by filled rooms
+    if (filter_full) {
+        QModelIndex member_list = sourceModel()->index(sourceRow, Column::MEMBER, sourceParent);
+        int player_count = sourceModel()
+                               ->data(member_list, RoomListItemMemberList::MemberListRole)
+                               .toList()
+                               .size();
+        int max_players =
+            sourceModel()->data(member_list, RoomListItemMemberList::MaxPlayerRole).toInt();
+        if (player_count >= max_players) {
+            return false;
+        }
+    }
+
+    // filter by search parameters
+    if (!filter_search.isEmpty()) {
+        QModelIndex room_name = sourceModel()->index(sourceRow, Column::ROOM_NAME, sourceParent);
+        QModelIndex host_name = sourceModel()->index(sourceRow, Column::OWNER, sourceParent);
+        bool room_name_match = sourceModel()
+                                   ->data(room_name, RoomListItemName::NameRole)
+                                   .toString()
+                                   .contains(filter_search, filterCaseSensitivity());
+        bool username_match = sourceModel()
+                                  ->data(host_name, RoomListItemOwner::OwnerUsernameRole)
+                                  .toString()
+                                  .contains(filter_search, filterCaseSensitivity());
+        if (!room_name_match && !username_match) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void RoomListFilterProxyModel::sort(int column, Qt::SortOrder order) {
+    sourceModel()->sort(column, order);
+}
+
+void RoomListFilterProxyModel::SetFilterFull(bool filter) {
     filter_full = filter;
     invalidate();
 }
 
-void LobbyFilterProxyModel::SetFilterSearch(const QString& filter) {
+void RoomListFilterProxyModel::SetFilterSearch(const QString& filter) {
     filter_search = filter;
     invalidate();
 }

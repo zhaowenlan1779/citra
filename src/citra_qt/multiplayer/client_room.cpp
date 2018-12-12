@@ -80,11 +80,9 @@ void ClientRoomWindow::UpdateView() {
             auto memberlist = member->GetMemberInformation();
             ui->chat->SetPlayerList(memberlist);
             const auto information = member->GetRoomInformation();
-            setWindowTitle(QString(tr("%1 (%2/%3 members) - connected"))
-                               .arg(QString::fromStdString(information.name))
+            setWindowTitle(QString(tr("%2/%3 members - connected"))
                                .arg(memberlist.size())
                                .arg(information.member_slots));
-            ui->description->setText(QString::fromStdString(information.description));
             return;
         }
     }

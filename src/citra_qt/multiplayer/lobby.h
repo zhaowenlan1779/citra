@@ -5,6 +5,7 @@
 #pragma once
 
 #include <memory>
+#include <unordered_map>
 #include <QDialog>
 #include <QFutureWatcher>
 #include <QSortFilterProxyModel>
@@ -16,7 +17,8 @@
 #include "ui_lobby.h"
 
 class LobbyModel;
-class LobbyFilterProxyModel;
+class LobbyListFilterProxyModel;
+class RoomListFilterProxyModel;
 
 /**
  * Listing of all public games pulled from services. The lobby should be simple enough for users to
@@ -66,9 +68,19 @@ signals:
 
 private:
     /**
-     * Removes all entries in the Lobby before refreshing.
+     * Removes all entries in the lobby list model before refreshing.
      */
-    void ResetModel();
+    void ResetLobbyListModel();
+
+    /**
+     * Removes all entries in the room list model before refreshing.
+     */
+    void ResetRoomListModel();
+
+    /**
+     * Loads the room list of the current selected lobby.
+     */
+    void PopulateRoomList(const QModelIndex& index);
 
     /**
      * Prompts for a password. Returns an empty QString if the user either did not provide a
@@ -76,36 +88,60 @@ private:
      */
     QString PasswordPrompt();
 
-    QStandardItemModel* model;
+    QStandardItemModel* lobby_list_model;
+    QStandardItemModel* room_list_model;
     QStandardItemModel* game_list;
-    LobbyFilterProxyModel* proxy;
+    LobbyListFilterProxyModel* lobby_list_proxy;
+    RoomListFilterProxyModel* room_list_proxy;
 
+    QFutureWatcher<AnnounceMultiplayerRoom::LobbyList> lobby_list_watcher;
     QFutureWatcher<AnnounceMultiplayerRoom::RoomList> room_list_watcher;
     std::weak_ptr<Core::AnnounceMultiplayerSession> announce_multiplayer_session;
     std::unique_ptr<Ui::Lobby> ui;
     QFutureWatcher<void>* watcher;
     Validation validation;
+    AnnounceMultiplayerRoom::LobbyList lobby_list;
+    AnnounceMultiplayerRoom::RoomList room_list;
+    std::unordered_map<std::string, AnnounceMultiplayerRoom::RoomList> lobbies;
+
+    QModelIndex previous_index;
 };
 
-/**
- * Proxy Model for filtering the lobby
- */
-class LobbyFilterProxyModel : public QSortFilterProxyModel {
-    Q_OBJECT;
+class LobbyListFilterProxyModel : public QSortFilterProxyModel {
+    Q_OBJECT
 
 public:
-    explicit LobbyFilterProxyModel(QWidget* parent, QStandardItemModel* list);
+    explicit LobbyListFilterProxyModel(QWidget* parent, QStandardItemModel* list);
     bool filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const override;
     void sort(int column, Qt::SortOrder order) override;
 
 public slots:
     void SetFilterOwned(bool);
+
+private:
+    QStandardItemModel* game_list;
+    bool filter_owned = false;
+};
+
+/**
+ * Proxy Model for filtering the room list
+ */
+class RoomListFilterProxyModel : public QSortFilterProxyModel {
+    Q_OBJECT;
+
+public:
+    explicit RoomListFilterProxyModel(QWidget* parent, QStandardItemModel* list);
+    bool filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const override;
+    void sort(int column, Qt::SortOrder order) override;
+
+public slots:
+    // void SetFilterOwned(bool);
     void SetFilterFull(bool);
     void SetFilterSearch(const QString&);
 
 private:
     QStandardItemModel* game_list;
-    bool filter_owned = false;
+    // bool filter_owned = false;
     bool filter_full = false;
     QString filter_search;
 };

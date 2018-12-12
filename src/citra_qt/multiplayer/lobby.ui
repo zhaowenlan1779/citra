@@ -109,7 +109,14 @@
       </layout>
      </item>
      <item>
-      <widget class="QTreeView" name="room_list"/>
+      <layout class="QHBoxLayout">
+       <item>
+        <widget class="QTreeView" name="lobby_list"/>
+       </item>
+       <item>
+        <widget class="QTreeView" name="room_list"/>
+       </item>
+      </layout>
      </item>
      <item>
       <widget class="QWidget" name="widget" native="true"/>
