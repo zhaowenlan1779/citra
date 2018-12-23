@@ -152,7 +152,8 @@ bool FrameDumper::StartDumping(const std::string& path, const std::string& forma
         frame_processing_thread.join();
     frame_processing_thread = std::thread([&] {
         FrameData frame;
-        while (frame_queue.PopWait(frame)) {
+        while (true) {
+            frame = frame_queue.PopWait();
             if (frame.width == 0 && frame.height == 0) {
                 // An empty frame marks the end of frame data
                 break;
