@@ -602,6 +602,10 @@ void GMainWindow::ConnectMenuEvents() {
     });
     connect(ui.action_Capture_Screenshot, &QAction::triggered, this,
             &GMainWindow::OnCaptureScreenshot);
+
+#ifndef ENABLE_FRAME_DUMPING
+    ui.action_Dump_Frames->setEnabled(false);
+#endif
     connect(ui.action_Dump_Frames, &QAction::triggered, this, [this] {
         if (ui.action_Dump_Frames->isChecked()) {
             OnStartFrameDumping();

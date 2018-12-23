@@ -14,10 +14,18 @@
 #include "video_core/swrasterizer/swrasterizer.h"
 #include "video_core/video_core.h"
 
-RendererBase::RendererBase(EmuWindow& window)
-    : render_window{window}, frame_dumpers{std::make_unique<FrameDumper>(),
-                                           std::make_unique<FrameDumper>()} {
-    FrameDumper::Initialize();
+#ifdef ENABLE_FRAME_DUMPING
+#include "video_core/ffmpeg_frame_dumper.h"
+#endif
+
+RendererBase::RendererBase(EmuWindow& window) : render_window{window} {
+#ifdef ENABLE_FRAME_DUMPING
+    frame_dumpers[0] = std::move(std::make_unique<FrameDumper::FFmpegBackend>());
+    frame_dumpers[1] = std::move(std::make_unique<FrameDumper::FFmpegBackend>());
+#else
+    frame_dumpers[0] = std::move(std::make_unique<FrameDumper::NullBackend>());
+    frame_dumpers[1] = std::move(std::make_unique<FrameDumper::NullBackend>());
+#endif
 }
 
 RendererBase::~RendererBase() = default;
@@ -44,11 +52,13 @@ bool RendererBase::StartFrameDumping(const std::string& path_top, const std::str
     if (!frame_dumpers[0]->StartDumping(
             path_top, format, Core::kScreenTopWidth * VideoCore::GetResolutionScaleFactor(),
             Core::kScreenTopHeight * VideoCore::GetResolutionScaleFactor())) {
+
         return false;
     }
     if (!frame_dumpers[1]->StartDumping(
             path_bottom, format, Core::kScreenBottomWidth * VideoCore::GetResolutionScaleFactor(),
             Core::kScreenBottomHeight * VideoCore::GetResolutionScaleFactor())) {
+
         return false;
     }
     start_dumping = true;
