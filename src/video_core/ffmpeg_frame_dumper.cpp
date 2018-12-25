@@ -38,16 +38,19 @@ bool FFmpegBackend::InitializeDumping() {
     }
 
     // Initialize format context
-    if (avformat_alloc_output_context2(&format_context, output_format, nullptr, dump_path.c_str()) <
-        0) {
+    auto* format_context_raw = format_context.get();
+    if (avformat_alloc_output_context2(&format_context_raw, output_format, nullptr,
+                                       dump_path.c_str()) < 0) {
+
         LOG_ERROR(Render, "Could not allocate output context");
         return false;
     }
+    format_context.reset(format_context_raw);
 
     // Initialize codec
     AVCodecID codec_id = output_format->video_codec;
     const AVCodec* codec = avcodec_find_encoder(codec_id);
-    codec_context = avcodec_alloc_context3(codec);
+    codec_context.reset(avcodec_alloc_context3(codec));
     if (!codec || !codec_context) {
         LOG_ERROR(Render, "Could not find encoder or allocate codec context");
         return false;
@@ -68,32 +71,33 @@ bool FFmpegBackend::InitializeDumping() {
     if (output_format->flags & AVFMT_GLOBALHEADER)
         codec_context->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
 
-    if (avcodec_open2(codec_context, codec, nullptr) < 0) {
+    if (avcodec_open2(codec_context.get(), codec, nullptr) < 0) {
         LOG_ERROR(Render, "Could not open codec");
         return false;
     }
 
     // Allocate frames
-    current_frame = av_frame_alloc();
-    scaled_frame = av_frame_alloc();
+    current_frame.reset(av_frame_alloc());
+    scaled_frame.reset(av_frame_alloc());
     scaled_frame->format = codec_context->pix_fmt;
     scaled_frame->width = width;
     scaled_frame->height = height;
-    if (av_frame_get_buffer(scaled_frame, 1) < 0) {
+    if (av_frame_get_buffer(scaled_frame.get(), 1) < 0) {
         LOG_ERROR(Render, "Could not allocate frame buffer");
         return false;
     }
 
     // Create stream
-    stream = avformat_new_stream(format_context, codec);
-    if (!stream || avcodec_parameters_from_context(stream->codecpar, codec_context) < 0) {
+    stream.reset(avformat_new_stream(format_context.get(), codec));
+    if (!stream || avcodec_parameters_from_context(stream->codecpar, codec_context.get()) < 0) {
         LOG_ERROR(Render, "Could not create stream");
         return false;
     }
 
     // Open video file
     if (avio_open(&format_context->pb, dump_path.c_str(), AVIO_FLAG_WRITE) < 0 ||
-        avformat_write_header(format_context, nullptr)) {
+        avformat_write_header(format_context.get(), nullptr)) {
+
         LOG_ERROR(Render, "Could not open {}", dump_path);
         return false;
     }
@@ -103,20 +107,11 @@ bool FFmpegBackend::InitializeDumping() {
 }
 
 void FFmpegBackend::FreeResources() {
-    av_frame_free(&current_frame);
-
-    avcodec_free_context(&codec_context);
-
-    if (format_context) {
-        avio_closep(&format_context->pb);
-    }
-    avformat_free_context(format_context);
-    format_context = nullptr;
-
-    if (sws_context) {
-        sws_freeContext(sws_context);
-        sws_context = nullptr;
-    }
+    current_frame.reset();
+    scaled_frame.reset();
+    codec_context.reset();
+    format_context.reset();
+    sws_context.reset();
 }
 
 void FFmpegBackend::WritePacket(AVPacket& packet) {
@@ -127,7 +122,7 @@ void FFmpegBackend::WritePacket(AVPacket& packet) {
         packet.dts = av_rescale_q(packet.dts, codec_context->time_base, stream->time_base);
     }
     packet.stream_index = stream->index;
-    av_interleaved_write_frame(format_context, &packet);
+    av_interleaved_write_frame(format_context.get(), &packet);
 }
 
 bool FFmpegBackend::StartDumping(const std::string& path, const std::string& format, int width,
@@ -174,11 +169,14 @@ void FFmpegBackend::ProcessFrame(FrameData& frame) {
     current_frame->height = height;
 
     // Scale the frame
-    sws_context =
-        sws_getCachedContext(sws_context, width, height, pixel_format, width, height,
+    auto* context =
+        sws_getCachedContext(sws_context.get(), width, height, pixel_format, width, height,
                              codec_context->pix_fmt, SWS_BICUBIC, nullptr, nullptr, nullptr);
+    if (context != sws_context.get())
+        sws_context.reset(context);
+
     if (sws_context) {
-        sws_scale(sws_context, current_frame->data, current_frame->linesize, 0, height,
+        sws_scale(sws_context.get(), current_frame->data, current_frame->linesize, 0, height,
                   scaled_frame->data, scaled_frame->linesize);
     }
     scaled_frame->pts = frame_count++;
@@ -190,11 +188,11 @@ void FFmpegBackend::ProcessFrame(FrameData& frame) {
     packet.size = 0;
 
     // Encode frame
-    if (avcodec_send_frame(codec_context, scaled_frame) < 0) {
+    if (avcodec_send_frame(codec_context.get(), scaled_frame.get()) < 0) {
         LOG_ERROR(Render, "Frame dropped: could not send frame");
         return;
     }
-    int error = avcodec_receive_packet(codec_context, &packet);
+    int error = avcodec_receive_packet(codec_context.get(), &packet);
     if (error < 0 && error != AVERROR(EAGAIN)) {
         LOG_ERROR(Render, "Frame dropped: could not encode video");
         return;
@@ -207,7 +205,7 @@ void FFmpegBackend::ProcessFrame(FrameData& frame) {
 
 void FFmpegBackend::EndDumping() {
     LOG_INFO(Render, "Ending frame dumping");
-    av_write_trailer(format_context);
+    av_write_trailer(format_context.get());
     FreeResources();
 }
 

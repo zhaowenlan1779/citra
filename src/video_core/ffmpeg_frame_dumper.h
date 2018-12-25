@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <memory>
 #include <thread>
 #include <vector>
 #include "common/common_types.h"
@@ -42,12 +43,44 @@ private:
     std::string dump_path;
     std::string dump_format;
 
-    AVFormatContext* format_context{};
-    AVCodecContext* codec_context{};
-    AVStream* stream{};
-    AVFrame* current_frame{};
-    AVFrame* scaled_frame{};
-    SwsContext* sws_context{};
+    // Deleters
+    struct AVFormatContextDeleter {
+        void operator()(AVFormatContext* format_context) const {
+            avio_closep(&format_context->pb);
+            avformat_free_context(format_context);
+        }
+    };
+
+    struct AVCodecContextDeleter {
+        void operator()(AVCodecContext* codec_context) const {
+            avcodec_free_context(&codec_context);
+        }
+    };
+
+    struct AVStreamDeleter {
+        void operator()(AVStream* stream) const {
+            // Do nothing
+        }
+    };
+
+    struct AVFrameDeleter {
+        void operator()(AVFrame* frame) const {
+            av_frame_free(&frame);
+        }
+    };
+
+    struct SwsContextDeleter {
+        void operator()(SwsContext* sws_context) const {
+            sws_freeContext(sws_context);
+        }
+    };
+
+    std::unique_ptr<AVFormatContext, AVFormatContextDeleter> format_context{};
+    std::unique_ptr<AVCodecContext, AVCodecContextDeleter> codec_context{};
+    std::unique_ptr<AVStream, AVStreamDeleter> stream{};
+    std::unique_ptr<AVFrame, AVFrameDeleter> current_frame{};
+    std::unique_ptr<AVFrame, AVFrameDeleter> scaled_frame{};
+    std::unique_ptr<SwsContext, SwsContextDeleter> sws_context{};
 
     u64 frame_count{};
     Common::SPSCQueue<FrameData> frame_queue;
