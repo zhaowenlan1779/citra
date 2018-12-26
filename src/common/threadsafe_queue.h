@@ -72,7 +72,6 @@ public:
             size--;
 
         ElementPtr* tmpptr = read_ptr;
-
         read_ptr = tmpptr->next.load(std::memory_order_acquire);
         t = std::move(tmpptr->current);
         tmpptr->next.store(nullptr);

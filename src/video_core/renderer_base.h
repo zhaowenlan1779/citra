@@ -9,10 +9,13 @@
 #include "common/common_types.h"
 #include "common/thread.h"
 #include "core/core.h"
-#include "video_core/frame_dumper.h"
 #include "video_core/rasterizer_interface.h"
 
 class EmuWindow;
+
+namespace FrameDumper {
+class Backend;
+}
 
 class RendererBase : NonCopyable {
 public:

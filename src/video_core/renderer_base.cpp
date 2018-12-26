@@ -4,10 +4,7 @@
 
 #include <memory>
 #include "core/3ds.h"
-#include "core/core.h"
 #include "core/frontend/emu_window.h"
-#include "core/hw/hw.h"
-#include "core/hw/lcd.h"
 #include "video_core/frame_dumper.h"
 #include "video_core/renderer_base.h"
 #include "video_core/renderer_opengl/gl_rasterizer.h"
