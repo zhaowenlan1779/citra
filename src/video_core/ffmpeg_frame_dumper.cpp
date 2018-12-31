@@ -25,7 +25,10 @@ FFmpegBackend::FFmpegBackend() {
     initialized = true;
 }
 
-FFmpegBackend::~FFmpegBackend() = default;
+FFmpegBackend::~FFmpegBackend() {
+    if (frame_processing_thread.joinable())
+        frame_processing_thread.join();
+}
 
 bool FFmpegBackend::InitializeDumping() {
     if (!FileUtil::CreateFullPath(dump_path)) {

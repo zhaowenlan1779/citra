@@ -64,4 +64,5 @@ bool RendererBase::StartFrameDumping(const std::string& path_top, const std::str
 
 void RendererBase::StopFrameDumping() {
     stop_dumping = true;
+    frame_dumping_stopped.Wait();
 }

@@ -177,6 +177,7 @@ void RendererOpenGL::SwapBuffers() {
     DrawScreens(render_window.GetFramebufferLayout());
     if (start_dumping.exchange(false)) {
         dump_frames = true;
+        frame_dumping_stopped.Reset();
     }
 
     // Check if frame dumping was stopped within the last frame
@@ -187,6 +188,7 @@ void RendererOpenGL::SwapBuffers() {
         for (auto& frame_dumper : frame_dumpers)
             frame_dumper->AddFrame(empty_data);
         dump_frames = false;
+        frame_dumping_stopped.Set();
     }
 
     Core::System::GetInstance().perf_stats.EndSystemFrame();
