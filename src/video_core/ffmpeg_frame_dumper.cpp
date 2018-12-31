@@ -2,9 +2,14 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include "common/assert.h"
 #include "common/file_util.h"
 #include "common/logging/log.h"
 #include "video_core/ffmpeg_frame_dumper.h"
+
+extern "C" {
+#include <libavutil/opt.h>
+}
 
 namespace FrameDumper {
 
@@ -30,8 +35,10 @@ bool FFmpegBackend::InitializeDumping() {
     frame_count = 0;
 
     // Get output format
+    // Ensure webm here to avoid patent issues
+    ASSERT_MSG(dump_format == "webm", "Only webm is allowed for frame dumping");
     AVOutputFormat* output_format =
-        av_guess_format(dump_format.c_str(), dump_path.c_str(), nullptr);
+        av_guess_format(dump_format.c_str(), dump_path.c_str(), "video/webm");
     if (!output_format) {
         LOG_ERROR(Render, "Could not get format {}", dump_format);
         return false;
@@ -48,7 +55,8 @@ bool FFmpegBackend::InitializeDumping() {
     format_context.reset(format_context_raw);
 
     // Initialize codec
-    AVCodecID codec_id = output_format->video_codec;
+    // Ensure VP8 codec here, also to avoid patent issues
+    constexpr AVCodecID codec_id = AV_CODEC_ID_VP8;
     const AVCodec* codec = avcodec_find_encoder(codec_id);
     codec_context.reset(avcodec_alloc_context3(codec));
     if (!codec || !codec_context) {
@@ -57,9 +65,6 @@ bool FFmpegBackend::InitializeDumping() {
     }
 
     // Configure codec context
-    // Force XVID FourCC for better compatibility
-    if (codec->id == AV_CODEC_ID_MPEG4)
-        codec_context->codec_tag = MKTAG('X', 'V', 'I', 'D');
     codec_context->codec_type = AVMEDIA_TYPE_VIDEO;
     codec_context->bit_rate = 2500000;
     codec_context->width = width;
@@ -70,6 +75,7 @@ bool FFmpegBackend::InitializeDumping() {
     codec_context->pix_fmt = AV_PIX_FMT_YUV420P;
     if (output_format->flags & AVFMT_GLOBALHEADER)
         codec_context->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+    av_opt_set_int(codec_context.get(), "deadline", 1, 0); // Set to fastest speed
 
     if (avcodec_open2(codec_context.get(), codec, nullptr) < 0) {
         LOG_ERROR(Render, "Could not open codec");

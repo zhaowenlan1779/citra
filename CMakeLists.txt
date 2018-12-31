@@ -270,7 +270,7 @@ if (ENABLE_FRAME_DUMPING)
         endif()
     endif()
 
-    find_package(FFmpeg REQUIRED COMPONENTS avcodec avformat swscale)
+    find_package(FFmpeg REQUIRED COMPONENTS avcodec avformat avutil swscale)
     if ("${FFmpeg_avcodec_VERSION}" VERSION_LESS "57.48.101")
         message(FATAL_ERROR "Found version for libavcodec is too low. The required version is at least 57.48.101 (included in FFmpeg 3.1 and later).")
     endif()

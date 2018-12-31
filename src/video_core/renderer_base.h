@@ -59,7 +59,7 @@ public:
     void RefreshRasterizerSetting();
 
     bool StartFrameDumping(const std::string& path_top, const std::string& path_bottom,
-                           const std::string& format = "");
+                           const std::string& format = "webm");
     void StopFrameDumping();
     bool IsDumpingFrames() const {
         return dump_frames.load(std::memory_order_relaxed);

@@ -100,7 +100,7 @@ target_link_libraries(video_core PUBLIC common core)
 target_link_libraries(video_core PRIVATE glad nihstro-headers)
 
 if (ENABLE_FRAME_DUMPING)
-    target_link_libraries(video_core PRIVATE FFmpeg::avcodec FFmpeg::avformat FFmpeg::swscale)
+    target_link_libraries(video_core PRIVATE FFmpeg::avcodec FFmpeg::avformat FFmpeg::swscale FFmpeg::avutil)
 endif()
 
 if (ARCHITECTURE_x86_64)

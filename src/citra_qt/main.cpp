@@ -1589,15 +1589,15 @@ void GMainWindow::OnCaptureScreenshot() {
 }
 
 void GMainWindow::OnStartFrameDumping() {
-    const QString path_top = QFileDialog::getSaveFileName(
-        this, tr("Save Top Screen Dump"), UISettings::values.frame_dumping_path_top,
-        tr("AVI Videos (*.avi);;MPEG-4 Videos (*.mp4);;Any File (*.*)"));
+    const QString path_top = QFileDialog::getSaveFileName(this, tr("Save Top Screen Dump"),
+                                                          UISettings::values.frame_dumping_path_top,
+                                                          tr("WebM Videos (*.webm)"));
     if (path_top.isEmpty())
         return;
     UISettings::values.frame_dumping_path_top = QFileInfo(path_top).path();
     const QString path_bottom = QFileDialog::getSaveFileName(
         this, tr("Save Bottom Screen Dump"), UISettings::values.frame_dumping_path_bottom,
-        tr("AVI Videos (*.avi);;MPEG-4 Videos (*.mp4);;Any File (*.*)"));
+        tr("WebM Videos (*.webm)"));
     if (path_bottom.isEmpty())
         return;
     UISettings::values.frame_dumping_path_bottom = QFileInfo(path_bottom).path();
@@ -1618,8 +1618,13 @@ void GMainWindow::OnStopFrameDumping() {
     } else {
         const bool was_dumping = VideoCore::g_renderer->IsDumpingFrames();
         VideoCore::g_renderer->StopFrameDumping();
-        if (was_dumping)
-            QMessageBox::information(this, tr("Dump Frames"), tr("The videos are saved."));
+        if (was_dumping) {
+            QMessageBox::information(
+                this, tr("Dump Frames"),
+                tr("The videos are being saved.\n\nThis may take a while depending on the length "
+                   "of the recording and your computer capabilities.\nDo not close Citra or start "
+                   "a new game during the process."));
+        }
     }
 }
 

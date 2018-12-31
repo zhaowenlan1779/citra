@@ -20,7 +20,7 @@ extern "C" {
 namespace FrameDumper {
 
 /**
- * Dumps the frames drawn to a video (usually an AVI), at native resolution.
+ * Dumps the frames drawn to a video (usually a WebM), at native resolution.
  * Note: each instance of this class only dumps a single screen.
  */
 class FFmpegBackend : public Backend {
