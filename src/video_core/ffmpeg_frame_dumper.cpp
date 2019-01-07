@@ -36,6 +36,9 @@ bool FFmpegBackend::InitializeDumping() {
     }
 
     frame_count = 0;
+    // Calculate max size
+    // This limits maximum frame queue size to 2GiB
+    max_size = 536870912 / (width * height);
 
     // Get output format
     // Ensure webm here to avoid patent issues
@@ -58,8 +61,8 @@ bool FFmpegBackend::InitializeDumping() {
     format_context.reset(format_context_raw);
 
     // Initialize codec
-    // Ensure VP8 codec here, also to avoid patent issues
-    constexpr AVCodecID codec_id = AV_CODEC_ID_VP8;
+    // Ensure VP9 codec here, also to avoid patent issues
+    constexpr AVCodecID codec_id = AV_CODEC_ID_VP9;
     const AVCodec* codec = avcodec_find_encoder(codec_id);
     codec_context.reset(avcodec_alloc_context3(codec));
     if (!codec || !codec_context) {
@@ -76,9 +79,10 @@ bool FFmpegBackend::InitializeDumping() {
     codec_context->time_base.den = 60;
     codec_context->gop_size = 12;
     codec_context->pix_fmt = AV_PIX_FMT_YUV420P;
+    codec_context->thread_count = 8;
     if (output_format->flags & AVFMT_GLOBALHEADER)
         codec_context->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
-    av_opt_set_int(codec_context.get(), "deadline", 1, 0); // Set to fastest speed
+    av_opt_set_int(codec_context.get(), "cpu-used", 5, 0);
 
     if (avcodec_open2(codec_context.get(), codec, nullptr) < 0) {
         LOG_ERROR(Render, "Could not open codec");
@@ -150,6 +154,7 @@ bool FFmpegBackend::StartDumping(const std::string& path, const std::string& for
         FrameData frame;
         while (true) {
             frame = frame_queue.PopWait();
+            cv.notify_one();
             if (frame.width == 0 && frame.height == 0) {
                 // An empty frame marks the end of frame data
                 break;
@@ -162,6 +167,11 @@ bool FFmpegBackend::StartDumping(const std::string& path, const std::string& for
 }
 
 void FFmpegBackend::AddFrame(FrameData& frame) {
+    if (frame_queue.Size() >= max_size) {
+        LOG_WARNING(Render, "Frame dumping queue is full, blocking");
+        std::unique_lock<std::mutex> lock(cv_mutex);
+        cv.wait(lock, [this] { return frame_queue.Size() == 0; });
+    }
     frame_queue.Push(std::move(frame));
 }
 

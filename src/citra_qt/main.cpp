@@ -865,11 +865,9 @@ void GMainWindow::BootGame(const QString& filename) {
     }
 
     if (frame_dumping_on_start) {
-        VideoCore::g_renderer->StartFrameDumping(frame_dumping_path_top.toStdString(),
-                                                 frame_dumping_path_bottom.toStdString());
+        VideoCore::g_renderer->StartFrameDumping(frame_dumping_path.toStdString());
         frame_dumping_on_start = false;
-        frame_dumping_path_top.clear();
-        frame_dumping_path_bottom.clear();
+        frame_dumping_path.clear();
     }
     OnStartGame();
 }
@@ -1589,32 +1587,24 @@ void GMainWindow::OnCaptureScreenshot() {
 }
 
 void GMainWindow::OnStartFrameDumping() {
-    const QString path_top = QFileDialog::getSaveFileName(this, tr("Save Top Screen Dump"),
-                                                          UISettings::values.frame_dumping_path_top,
-                                                          tr("WebM Videos (*.webm)"));
-    if (path_top.isEmpty())
+    const QString path = QFileDialog::getSaveFileName(this, tr("Save Frame Dump"),
+                                                      UISettings::values.frame_dumping_path,
+                                                      tr("WebM Videos (*.webm)"));
+    if (path.isEmpty())
         return;
-    UISettings::values.frame_dumping_path_top = QFileInfo(path_top).path();
-    const QString path_bottom = QFileDialog::getSaveFileName(
-        this, tr("Save Bottom Screen Dump"), UISettings::values.frame_dumping_path_bottom,
-        tr("WebM Videos (*.webm)"));
-    if (path_bottom.isEmpty())
-        return;
-    UISettings::values.frame_dumping_path_bottom = QFileInfo(path_bottom).path();
+    UISettings::values.frame_dumping_path = QFileInfo(path).path();
     if (emulation_running) {
-        VideoCore::g_renderer->StartFrameDumping(path_top.toStdString(), path_bottom.toStdString());
+        VideoCore::g_renderer->StartFrameDumping(path.toStdString());
     } else {
         frame_dumping_on_start = true;
-        frame_dumping_path_top = path_top;
-        frame_dumping_path_bottom = path_bottom;
+        frame_dumping_path = path;
     }
 }
 
 void GMainWindow::OnStopFrameDumping() {
     if (frame_dumping_on_start) {
         frame_dumping_on_start = false;
-        frame_dumping_path_top.clear();
-        frame_dumping_path_bottom.clear();
+        frame_dumping_path.clear();
     } else {
         const bool was_dumping = VideoCore::g_renderer->IsDumpingFrames();
         VideoCore::g_renderer->StopFrameDumping();

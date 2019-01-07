@@ -88,8 +88,7 @@ struct Values {
     QString movie_record_path;
     QString movie_playback_path;
     QString screenshot_path;
-    QString frame_dumping_path_top;
-    QString frame_dumping_path_bottom;
+    QString frame_dumping_path;
     QString game_dir_deprecated;
     bool game_dir_deprecated_deepscan;
     QList<UISettings::GameDir> game_dirs;

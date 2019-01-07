@@ -8,14 +8,11 @@
 #include <glad/glad.h>
 #include "common/common_types.h"
 #include "common/math_util.h"
+#include "core/frontend/framebuffer_layout.h"
 #include "core/hw/gpu.h"
 #include "video_core/renderer_base.h"
 #include "video_core/renderer_opengl/gl_resource_manager.h"
 #include "video_core/renderer_opengl/gl_state.h"
-
-namespace Layout {
-struct FramebufferLayout;
-}
 
 namespace OpenGL {
 
@@ -54,7 +51,7 @@ private:
     void InitOpenGLObjects();
     void ConfigureFramebufferTexture(TextureInfo& texture,
                                      const GPU::Regs::FramebufferConfig& framebuffer);
-    void DrawScreens(const Layout::FramebufferLayout& layout);
+    void DrawScreens(const Layout::FramebufferLayout& layout, bool increase_frame_count = false);
     void DrawSingleScreenRotated(const ScreenInfo& screen_info, float x, float y, float w, float h,
                                  int screen_id);
     void UpdateFramerate();
@@ -84,10 +81,15 @@ private:
     GLuint attrib_position;
     GLuint attrib_tex_coord;
 
+    // Frame dumping
+    OGLFramebuffer frame_dumping_framebuffer;
+    GLuint frame_dumping_renderbuffer;
+    Layout::FramebufferLayout frame_dumping_layout;
+
     // PBOs used to dump frames faster
-    std::array<std::array<OGLBuffer, 2>, 2> frame_dumping_pbos;
-    std::array<GLuint, 2> current_pbo{1, 1}, next_pbo;
-    std::array<std::array<int, 2>, 2> pbo_width, pbo_height;
+    std::array<OGLBuffer, 2> frame_dumping_pbos;
+    GLuint current_pbo = 1;
+    GLuint next_pbo = 0;
 };
 
 } // namespace OpenGL

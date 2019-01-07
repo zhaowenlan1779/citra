@@ -233,8 +233,7 @@ private:
 
     // Dump frames
     bool frame_dumping_on_start = false;
-    QString frame_dumping_path_top;
-    QString frame_dumping_path_bottom;
+    QString frame_dumping_path;
 
     // Debugger panes
     ProfilerWidget* profilerWidget;

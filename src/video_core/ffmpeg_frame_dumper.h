@@ -4,7 +4,9 @@
 
 #pragma once
 
+#include <condition_variable>
 #include <memory>
+#include <mutex>
 #include <thread>
 #include <vector>
 #include "common/common_types.h"
@@ -83,7 +85,11 @@ private:
     std::unique_ptr<SwsContext, SwsContextDeleter> sws_context{};
 
     u64 frame_count{};
+    /// Maximum acceptable queue size to avoid eating up memory
+    int max_size{};
     Common::SPSCQueue<FrameData> frame_queue;
+    std::mutex cv_mutex;
+    std::condition_variable cv;
 
     std::thread frame_processing_thread;
 

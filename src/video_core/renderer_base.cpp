@@ -5,6 +5,7 @@
 #include <memory>
 #include "core/3ds.h"
 #include "core/frontend/emu_window.h"
+#include "core/frontend/framebuffer_layout.h"
 #include "video_core/frame_dumper.h"
 #include "video_core/renderer_base.h"
 #include "video_core/renderer_opengl/gl_rasterizer.h"
@@ -17,11 +18,9 @@
 
 RendererBase::RendererBase(EmuWindow& window) : render_window{window} {
 #ifdef ENABLE_FRAME_DUMPING
-    frame_dumpers[0] = std::move(std::make_unique<FrameDumper::FFmpegBackend>());
-    frame_dumpers[1] = std::move(std::make_unique<FrameDumper::FFmpegBackend>());
+    frame_dumper = std::move(std::make_unique<FrameDumper::FFmpegBackend>());
 #else
-    frame_dumpers[0] = std::move(std::make_unique<FrameDumper::NullBackend>());
-    frame_dumpers[1] = std::move(std::make_unique<FrameDumper::NullBackend>());
+    frame_dumper = std::move(std::make_unique<FrameDumper::NullBackend>());
 #endif
 }
 
@@ -44,18 +43,10 @@ void RendererBase::RefreshRasterizerSetting() {
     }
 }
 
-bool RendererBase::StartFrameDumping(const std::string& path_top, const std::string& path_bottom,
-                                     const std::string& format) {
-    if (!frame_dumpers[0]->StartDumping(
-            path_top, format, Core::kScreenTopWidth * VideoCore::GetResolutionScaleFactor(),
-            Core::kScreenTopHeight * VideoCore::GetResolutionScaleFactor())) {
-
-        return false;
-    }
-    if (!frame_dumpers[1]->StartDumping(
-            path_bottom, format, Core::kScreenBottomWidth * VideoCore::GetResolutionScaleFactor(),
-            Core::kScreenBottomHeight * VideoCore::GetResolutionScaleFactor())) {
-
+bool RendererBase::StartFrameDumping(const std::string& path, const std::string& format) {
+    Layout::FramebufferLayout layout{
+        Layout::FrameLayoutFromResolutionScale(VideoCore::GetResolutionScaleFactor())};
+    if (!frame_dumper->StartDumping(path, format, layout.width, layout.height)) {
         return false;
     }
     start_dumping = true;
