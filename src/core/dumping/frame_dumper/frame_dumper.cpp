@@ -3,7 +3,7 @@
 // Refer to the license.txt file included.
 
 #include <cstring>
-#include "video_core/frame_dumper.h"
+#include "core/dumping/frame_dumper/frame_dumper.h"
 
 namespace FrameDumper {
 

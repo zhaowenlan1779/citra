@@ -36,6 +36,8 @@ add_library(core STATIC
     core.h
     core_timing.cpp
     core_timing.h
+    dumping/frame_dumper/frame_dumper.cpp
+    dumping/frame_dumper/frame_dumper.h
     file_sys/archive_backend.cpp
     file_sys/archive_backend.h
     file_sys/archive_extsavedata.cpp
@@ -444,6 +446,13 @@ if (ENABLE_SCRIPTING)
     )
 endif()
 
+if (ENABLE_FRAME_DUMPING)
+    target_sources(core PRIVATE
+        dumping/frame_dumper/ffmpeg_frame_dumper.cpp
+        dumping/frame_dumper/ffmpeg_frame_dumper.h
+    )
+endif()
+
 create_target_directory_groups(core)
 
 target_link_libraries(core PUBLIC common PRIVATE audio_core network video_core)
@@ -465,4 +474,8 @@ endif()
 
 if (ENABLE_SCRIPTING)
     target_link_libraries(core PUBLIC libzmq-headers cppzmq-headers libzmq)
+endif()
+
+if (ENABLE_FRAME_DUMPING)
+    target_link_libraries(core PRIVATE FFmpeg::avcodec FFmpeg::avformat FFmpeg::swscale FFmpeg::avutil)
 endif()

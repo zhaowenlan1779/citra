@@ -3,8 +3,6 @@ add_library(video_core STATIC
     command_processor.h
     debug_utils/debug_utils.cpp
     debug_utils/debug_utils.h
-    frame_dumper.cpp
-    frame_dumper.h
     geometry_pipeline.cpp
     geometry_pipeline.h
     gpu_debugger.h
@@ -87,21 +85,10 @@ if(ARCHITECTURE_x86_64)
     )
 endif()
 
-if (ENABLE_FRAME_DUMPING)
-    target_sources(video_core PRIVATE
-        ffmpeg_frame_dumper.cpp
-        ffmpeg_frame_dumper.h
-    )
-endif()
-
 create_target_directory_groups(video_core)
 
 target_link_libraries(video_core PUBLIC common core)
 target_link_libraries(video_core PRIVATE glad nihstro-headers)
-
-if (ENABLE_FRAME_DUMPING)
-    target_link_libraries(video_core PRIVATE FFmpeg::avcodec FFmpeg::avformat FFmpeg::swscale FFmpeg::avutil)
-endif()
 
 if (ARCHITECTURE_x86_64)
     target_link_libraries(video_core PUBLIC xbyak)

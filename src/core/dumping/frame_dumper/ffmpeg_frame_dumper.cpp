@@ -5,7 +5,7 @@
 #include "common/assert.h"
 #include "common/file_util.h"
 #include "common/logging/log.h"
-#include "video_core/ffmpeg_frame_dumper.h"
+#include "core/dumping/frame_dumper/ffmpeg_frame_dumper.h"
 
 extern "C" {
 #include <libavutil/opt.h>

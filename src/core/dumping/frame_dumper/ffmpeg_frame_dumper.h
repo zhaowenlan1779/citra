@@ -11,7 +11,7 @@
 #include <vector>
 #include "common/common_types.h"
 #include "common/threadsafe_queue.h"
-#include "video_core/frame_dumper.h"
+#include "core/dumping/frame_dumper/frame_dumper.h"
 
 extern "C" {
 #include <libavcodec/avcodec.h>

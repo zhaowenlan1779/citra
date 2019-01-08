@@ -4,16 +4,16 @@
 
 #include <memory>
 #include "core/3ds.h"
+#include "core/dumping/frame_dumper/frame_dumper.h"
 #include "core/frontend/emu_window.h"
 #include "core/frontend/framebuffer_layout.h"
-#include "video_core/frame_dumper.h"
 #include "video_core/renderer_base.h"
 #include "video_core/renderer_opengl/gl_rasterizer.h"
 #include "video_core/swrasterizer/swrasterizer.h"
 #include "video_core/video_core.h"
 
 #ifdef ENABLE_FRAME_DUMPING
-#include "video_core/ffmpeg_frame_dumper.h"
+#include "core/dumping/frame_dumper/ffmpeg_frame_dumper.h"
 #endif
 
 RendererBase::RendererBase(EmuWindow& window) : render_window{window} {
