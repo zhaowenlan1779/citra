@@ -140,6 +140,7 @@ set(cryptopp_SOURCES
         cryptopp/dll.cpp
         cryptopp/ec2n.cpp
         cryptopp/ecp.cpp
+        cryptopp/files.cpp
         cryptopp/filters.cpp
         cryptopp/fips140.cpp
         cryptopp/gcm-simd.cpp

@@ -42,6 +42,9 @@ enum KeySlotID : std::size_t {
     // AES keyslot used for APT:Wrap/Unwrap functions
     APTWrap = 0x31,
 
+    // Console-unique AES keyslot used to encrypt all data in the "Nintendo 3DS/<ID0>/<ID1>" folder
+    SDKey = 0x34,
+
     // AES keyslot used for decrypting ticket title key
     TicketCommonKey = 0x3D,
 

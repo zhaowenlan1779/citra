@@ -108,6 +108,12 @@ add_executable(citra-qt
     multiplayer/state.cpp
     multiplayer/state.h
     multiplayer/validation.h
+    sd_import/decryptor.cpp
+    sd_import/decryptor.h
+    sd_import/disa_container.cpp
+    sd_import/disa_container.h
+    sd_import/inner_fat.cpp
+    sd_import/inner_fat.h
     ui_settings.cpp
     ui_settings.h
     updater/updater.cpp
@@ -221,7 +227,7 @@ endif()
 create_target_directory_groups(citra-qt)
 
 target_link_libraries(citra-qt PRIVATE audio_core common core input_common network video_core)
-target_link_libraries(citra-qt PRIVATE Boost::boost glad nihstro-headers Qt5::OpenGL Qt5::Widgets Qt5::Multimedia)
+target_link_libraries(citra-qt PRIVATE Boost::boost cryptopp glad nihstro-headers Qt5::OpenGL Qt5::Widgets Qt5::Multimedia)
 target_link_libraries(citra-qt PRIVATE ${PLATFORM_LIBRARIES} Threads::Threads)
 
 target_compile_definitions(citra-qt PRIVATE
