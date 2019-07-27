@@ -1001,9 +1001,7 @@ void GMainWindow::OnGameListOpenFolder(u64 data_id, GameListOpenTarget target) {
     }
 
     QString qpath = QString::fromStdString(path);
-
-    QDir dir(qpath);
-    if (!dir.exists()) {
+    if (!QFileInfo::exists(qpath)) {
         QMessageBox::critical(
             this, tr("Error Opening %1 Folder").arg(QString::fromStdString(open_target)),
             tr("Folder does not exist!"));
