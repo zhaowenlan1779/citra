@@ -976,24 +976,26 @@ void GMainWindow::OnGameListOpenFolder(u64 data_id, GameListOpenTarget target) {
         open_target = "Save Data";
         std::string sdmc_dir = FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir);
         path = FileSys::ArchiveSource_SDSaveData::GetSaveDataPathFor(sdmc_dir, data_id);
+        path.erase(path.size() - 1);
         break;
     }
     case GameListOpenTarget::EXT_DATA: {
         open_target = "Extra Data";
         std::string sdmc_dir = FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir);
         path = FileSys::GetExtDataPathFromId(sdmc_dir, data_id);
+        path.erase(path.size() - 1);
         break;
     }
     case GameListOpenTarget::APPLICATION: {
         open_target = "Application";
         auto media_type = Service::AM::GetTitleMediaType(data_id);
-        path = Service::AM::GetTitlePath(media_type, data_id) + "content/";
+        path = Service::AM::GetTitlePath(media_type, data_id) + "content";
         break;
     }
     case GameListOpenTarget::UPDATE_DATA:
         open_target = "Update Data";
         path = Service::AM::GetTitlePath(Service::FS::MediaType::SDMC, data_id + 0xe00000000) +
-               "content/";
+               "content";
         break;
     default:
         LOG_ERROR(Frontend, "Unexpected target {}", static_cast<int>(target));
