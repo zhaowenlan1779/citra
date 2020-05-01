@@ -62,6 +62,9 @@ private:
 
     QWidget& parent;
 
+    std::string text;
+    int button;
+
     friend class QtKeyboardDialog;
     friend class QtKeyboardValidator;
 };
