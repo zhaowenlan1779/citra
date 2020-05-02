@@ -115,7 +115,7 @@ void QtKeyboard::Execute(const Frontend::KeyboardConfig& config) {
         ok_id = static_cast<u8>(this->config.button_config);
     }
     QMetaObject::invokeMethod(this, "OpenInputDialog", Qt::BlockingQueuedConnection);
-    Finalize(text, button);
+    Finalize(result_text, result_button);
 }
 
 void QtKeyboard::ShowError(const std::string& error) {
@@ -126,14 +126,15 @@ void QtKeyboard::ShowError(const std::string& error) {
 
 void QtKeyboard::OpenInputDialog() {
     QtKeyboardDialog dialog(&parent, this);
-    dialog.setWindowFlags(Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint |
-                          Qt::WindowSystemMenuHint | Qt::WindowCloseButtonHint);
+    dialog.setWindowFlags(dialog.windowFlags() &
+                          ~(Qt::WindowCloseButtonHint | Qt::WindowContextHelpButtonHint));
     dialog.setWindowModality(Qt::WindowModal);
     dialog.exec();
 
-    text = dialog.text.toStdString();
-    button = dialog.button;
-    LOG_INFO(Frontend, "SWKBD input dialog finished, text={}, button={}", text, button);
+    result_text = dialog.text.toStdString();
+    result_button = dialog.button;
+    LOG_INFO(Frontend, "SWKBD input dialog finished, text={}, button={}", result_text,
+             result_button);
 }
 
 void QtKeyboard::ShowErrorDialog(QString message) {
