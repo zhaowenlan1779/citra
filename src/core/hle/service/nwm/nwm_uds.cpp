@@ -279,6 +279,8 @@ void NWM_UDS::HandleEAPoLPacket(const Network::WifiPacket& packet) {
 
         // We're now connected, signal the application
         connection_status.status = static_cast<u32>(NetworkStatus::ConnectedAsClient);
+        connection_status.status_change_reason =
+            static_cast<u32>(NetworkStatusChangeReason::ConnectionEstablished);
         // Some games require ConnectToNetwork to block, for now it doesn't
         // If blocking is implemented this lock needs to be changed,
         // otherwise it might cause deadlocks
@@ -837,6 +839,8 @@ ResultCode NWM_UDS::BeginHostingNetwork(const u8* network_info_buffer,
         ASSERT_MSG(network_info.max_nodes > 1, "Trying to host a network of only one member.");
 
         connection_status.status = static_cast<u32>(NetworkStatus::ConnectedAsHost);
+        connection_status.status_change_reason =
+            static_cast<u32>(NetworkStatusChangeReason::ConnectionEstablished);
 
         // Ensure the application data size is less than the maximum value.
         ASSERT_MSG(network_info.application_data_size <= ApplicationDataSize,
