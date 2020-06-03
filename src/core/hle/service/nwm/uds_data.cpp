@@ -359,7 +359,7 @@ std::vector<u8> GenerateEAPoLLogoffFrame(const MacAddress& mac_address, u16 netw
         auto& node = eapol_logoff.nodes[index];
 
         node.friend_code_seed = node_info.friend_code_seed;
-        node.network_node_id = node_sinfo.network_node_id;
+        node.network_node_id = node_info.network_node_id;
 
         std::copy(node_info.username.begin(), node_info.username.end(), node.username.begin());
     }
