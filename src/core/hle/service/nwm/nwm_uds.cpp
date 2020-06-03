@@ -269,6 +269,10 @@ void NWM_UDS::HandleEAPoLPacket(const Network::WifiPacket& packet) {
         node_info.resize(network_info.max_nodes);
         for (const auto& node : logoff.nodes) {
             const u16 index = node.network_node_id;
+            if (!index) {
+                continue;
+            }
+
             connection_status.node_bitmask |= 1 << (index - 1);
             connection_status.changed_nodes |= 1 << (index - 1);
             connection_status.nodes[index - 1] = index;
@@ -301,6 +305,10 @@ void NWM_UDS::HandleEAPoLPacket(const Network::WifiPacket& packet) {
         node_info.resize(network_info.max_nodes);
         for (const auto& node : logoff.nodes) {
             const u16 index = node.network_node_id;
+            if (!index) {
+                continue;
+            }
+
             connection_status.node_bitmask |= 1 << (index - 1);
             connection_status.nodes[index - 1] = index;
 
