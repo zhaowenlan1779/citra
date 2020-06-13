@@ -7,6 +7,7 @@
 #include "common/file_util.h"
 #include "common/logging/log.h"
 #include "common/param_package.h"
+#include "common/scope_exit.h"
 #include "common/string_util.h"
 #include "core/dumping/ffmpeg_backend.h"
 #include "core/hw/gpu.h"
@@ -15,6 +16,8 @@
 #include "video_core/video_core.h"
 
 extern "C" {
+#include <libavfilter/buffersink.h>
+#include <libavfilter/buffersrc.h>
 #include <libavutil/pixdesc.h>
 }
 
@@ -125,13 +128,9 @@ bool FFmpegVideoStream::Init(FFmpegMuxer& muxer, const Layout::FramebufferLayout
     codec_context->bit_rate = Settings::values.video_bitrate;
     codec_context->width = layout.width;
     codec_context->height = layout.height;
-    // TODO(xperia64): While these numbers from core timing work fine, certain video codecs do not
-    // support the strange resulting timebase (280071/16756991); Addressing this issue would require
-    // resampling the video
-    // List of codecs known broken by this change: mpeg1, mpeg2, mpeg4, libxvid
-    // See https://github.com/citra-emu/citra/pull/5273#issuecomment-643023325 for more information
-    codec_context->time_base.num = static_cast<int>(GPU::frame_ticks);
-    codec_context->time_base.den = static_cast<int>(BASE_CLOCK_RATE_ARM11);
+    // Use 60fps here, since the video is already filtered (resampled)
+    codec_context->time_base.num = 1;
+    codec_context->time_base.den = 60;
     codec_context->gop_size = 12;
     codec_context->pix_fmt = codec->pix_fmts ? codec->pix_fmts[0] : AV_PIX_FMT_YUV420P;
     if (format_context->oformat->flags & AVFMT_GLOBALHEADER)
@@ -158,31 +157,19 @@ bool FFmpegVideoStream::Init(FFmpegMuxer& muxer, const Layout::FramebufferLayout
 
     // Allocate frames
     current_frame.reset(av_frame_alloc());
-    scaled_frame.reset(av_frame_alloc());
-    scaled_frame->format = codec_context->pix_fmt;
-    scaled_frame->width = layout.width;
-    scaled_frame->height = layout.height;
-    if (av_frame_get_buffer(scaled_frame.get(), 0) < 0) {
-        LOG_ERROR(Render, "Could not allocate frame buffer");
-        return false;
-    }
+    filtered_frame.reset(av_frame_alloc());
 
-    // Create SWS Context
-    auto* context = sws_getCachedContext(
-        sws_context.get(), layout.width, layout.height, pixel_format, layout.width, layout.height,
-        codec_context->pix_fmt, SWS_BICUBIC, nullptr, nullptr, nullptr);
-    if (context != sws_context.get())
-        sws_context.reset(context);
-
-    return true;
+    return InitFilters();
 }
 
 void FFmpegVideoStream::Free() {
     FFmpegStream::Free();
 
     current_frame.reset();
-    scaled_frame.reset();
-    sws_context.reset();
+    filtered_frame.reset();
+    filter_graph.reset();
+    source_context = nullptr;
+    sink_context = nullptr;
 }
 
 void FFmpegVideoStream::ProcessFrame(VideoFrame& frame) {
@@ -196,20 +183,95 @@ void FFmpegVideoStream::ProcessFrame(VideoFrame& frame) {
     current_frame->format = pixel_format;
     current_frame->width = layout.width;
     current_frame->height = layout.height;
+    current_frame->pts = frame_count++;
 
-    // Scale the frame
-    if (av_frame_make_writable(scaled_frame.get()) < 0) {
-        LOG_ERROR(Render, "Video frame dropped: Could not prepare frame");
+    // Filter the frame
+    if (av_buffersrc_add_frame(source_context, current_frame.get()) < 0) {
+        LOG_ERROR(Render, "Video frame dropped: Could not add frame to filter graph");
         return;
     }
-    if (sws_context) {
-        sws_scale(sws_context.get(), current_frame->data, current_frame->linesize, 0, layout.height,
-                  scaled_frame->data, scaled_frame->linesize);
+    int error = 0;
+    while (true) {
+        error = av_buffersink_get_frame(sink_context, filtered_frame.get());
+        if (error == AVERROR(EAGAIN) || error == AVERROR_EOF)
+            return;
+        if (error < 0) {
+            LOG_ERROR(Render, "Video frame dropped: Could not receive frame from filter graph");
+            return;
+        } else {
+            // Encode frame
+            SendFrame(filtered_frame.get());
+            av_frame_unref(filtered_frame.get());
+        }
     }
-    scaled_frame->pts = frame_count++;
+}
 
-    // Encode frame
-    SendFrame(scaled_frame.get());
+bool FFmpegVideoStream::InitFilters() {
+    filter_graph.reset(avfilter_graph_alloc());
+
+    const AVFilter* source = avfilter_get_by_name("buffer");
+    const AVFilter* sink = avfilter_get_by_name("buffersink");
+    if (!source || !sink) {
+        LOG_ERROR(Render, "Could not find buffer source or sink");
+        return false;
+    }
+
+    // Configure buffer source
+    static constexpr AVRational src_time_base{static_cast<int>(GPU::frame_ticks),
+                                              static_cast<int>(BASE_CLOCK_RATE_ARM11)};
+    const std::string in_args = fmt::format(
+        "video_size={}x{}:pix_fmt={}:time_base={}/{}:pixel_aspect=1", codec_context->width,
+        codec_context->height, pixel_format, src_time_base.num, src_time_base.den);
+    if (avfilter_graph_create_filter(&source_context, source, "in", in_args.c_str(), nullptr,
+                                     filter_graph.get()) < 0) {
+        LOG_ERROR(Render, "Could not create buffer source");
+        return false;
+    }
+
+    // Configure buffer sink
+    if (avfilter_graph_create_filter(&sink_context, sink, "out", nullptr, nullptr,
+                                     filter_graph.get()) < 0) {
+        LOG_ERROR(Render, "Could not create buffer sink");
+        return false;
+    }
+    const AVPixelFormat pix_fmts[] = {codec_context->pix_fmt, AV_PIX_FMT_NONE};
+    if (av_opt_set_int_list(sink_context, "pix_fmts", pix_fmts, AV_PIX_FMT_NONE,
+                            AV_OPT_SEARCH_CHILDREN) < 0) {
+        LOG_ERROR(Render, "Could not set output pixel format");
+        return false;
+    }
+
+    // Initialize filter graph
+    // `outputs` as in outputs of the 'previous' graphs
+    AVFilterInOut* outputs = avfilter_inout_alloc();
+    outputs->name = av_strdup("in");
+    outputs->filter_ctx = source_context;
+    outputs->pad_idx = 0;
+    outputs->next = nullptr;
+
+    // `inputs` as in inputs to the 'next' graphs
+    AVFilterInOut* inputs = avfilter_inout_alloc();
+    inputs->name = av_strdup("out");
+    inputs->filter_ctx = sink_context;
+    inputs->pad_idx = 0;
+    inputs->next = nullptr;
+
+    SCOPE_EXIT({
+        avfilter_inout_free(&outputs);
+        avfilter_inout_free(&inputs);
+    });
+
+    if (avfilter_graph_parse_ptr(filter_graph.get(), filter_graph_desc.data(), &inputs, &outputs,
+                                 nullptr) < 0) {
+        LOG_ERROR(Render, "Could not parse or create filter graph");
+        return false;
+    }
+    if (avfilter_graph_config(filter_graph.get(), nullptr) < 0) {
+        LOG_ERROR(Render, "Could not configure filter graph");
+        return false;
+    }
+
+    return true;
 }
 
 FFmpegAudioStream::~FFmpegAudioStream() {

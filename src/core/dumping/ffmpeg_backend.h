@@ -19,10 +19,10 @@
 
 extern "C" {
 #include <libavcodec/avcodec.h>
+#include <libavfilter/avfilter.h>
 #include <libavformat/avformat.h>
 #include <libavutil/opt.h>
 #include <libswresample/swresample.h>
-#include <libswscale/swscale.h>
 }
 
 namespace VideoDumper {
@@ -69,7 +69,7 @@ protected:
 
 /**
  * A FFmpegStream used for video data.
- * Rescales, encodes and writes a frame.
+ * Filters (scales), encodes and writes a frame.
  */
 class FFmpegVideoStream : public FFmpegStream {
 public:
@@ -80,21 +80,29 @@ public:
     void ProcessFrame(VideoFrame& frame);
 
 private:
-    struct SwsContextDeleter {
-        void operator()(SwsContext* sws_context) const {
-            sws_freeContext(sws_context);
-        }
-    };
+    bool InitFilters();
 
     u64 frame_count{};
 
     std::unique_ptr<AVFrame, AVFrameDeleter> current_frame{};
-    std::unique_ptr<AVFrame, AVFrameDeleter> scaled_frame{};
-    std::unique_ptr<SwsContext, SwsContextDeleter> sws_context{};
+    std::unique_ptr<AVFrame, AVFrameDeleter> filtered_frame{};
     Layout::FramebufferLayout layout;
+
+    struct AVFilterGraphDeleter {
+        void operator()(AVFilterGraph* filter_graph) const {
+            avfilter_graph_free(&filter_graph);
+        }
+    };
+    std::unique_ptr<AVFilterGraph, AVFilterGraphDeleter> filter_graph{};
+    // These don't need to be freed apparently
+    AVFilterContext* source_context;
+    AVFilterContext* sink_context;
 
     /// The pixel format the frames are stored in
     static constexpr AVPixelFormat pixel_format = AVPixelFormat::AV_PIX_FMT_BGRA;
+
+    /// The filter graph to use. This graph means 'change FPS to 60, convert format if needed'
+    static constexpr std::string_view filter_graph_desc = "fps=60";
 };
 
 /**

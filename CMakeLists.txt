@@ -208,7 +208,7 @@ if (ENABLE_FFMPEG)
     endif()
 
     if (ENABLE_FFMPEG_VIDEO_DUMPER)
-        find_package(FFmpeg REQUIRED COMPONENTS avcodec avformat avutil swscale swresample)
+        find_package(FFmpeg REQUIRED COMPONENTS avcodec avfilter avformat avutil swresample)
     else()
         find_package(FFmpeg REQUIRED COMPONENTS avcodec)
     endif()
