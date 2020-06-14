@@ -80,14 +80,27 @@ public:
     void ProcessFrame(VideoFrame& frame);
 
 private:
+    bool InitHWContext(const AVCodec* codec);
     bool InitFilters();
 
     u64 frame_count{};
 
     std::unique_ptr<AVFrame, AVFrameDeleter> current_frame{};
     std::unique_ptr<AVFrame, AVFrameDeleter> filtered_frame{};
+    std::unique_ptr<AVFrame, AVFrameDeleter> hw_frame{};
     Layout::FramebufferLayout layout;
 
+    /// The pixel format the input frames are stored in
+    static constexpr AVPixelFormat pixel_format = AVPixelFormat::AV_PIX_FMT_BGRA;
+
+    // Software pixel format. For normal encoders, this is the format they accept. For HW-acceled
+    // encoders, this is the format the HW frames context accepts.
+    AVPixelFormat sw_pixel_format = AV_PIX_FMT_NONE;
+
+    /// Whether the encoder we are using requires HW frames to be supplied.
+    bool requires_hw_frames = false;
+
+    // Filter related
     struct AVFilterGraphDeleter {
         void operator()(AVFilterGraph* filter_graph) const {
             avfilter_graph_free(&filter_graph);
@@ -97,9 +110,6 @@ private:
     // These don't need to be freed apparently
     AVFilterContext* source_context;
     AVFilterContext* sink_context;
-
-    /// The pixel format the frames are stored in
-    static constexpr AVPixelFormat pixel_format = AVPixelFormat::AV_PIX_FMT_BGRA;
 
     /// The filter graph to use. This graph means 'change FPS to 60, convert format if needed'
     static constexpr std::string_view filter_graph_desc = "fps=60";
